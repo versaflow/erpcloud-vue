@@ -1,0 +1,6 @@
+{
+    "watch": ["resources"],
+    "ext": "vue,js,ts",
+    "exec": "npm run build"
+  }
+  
