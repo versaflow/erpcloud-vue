@@ -72,3 +72,25 @@ composer run serve-local
 php artisan migrate
 
 php artisan key:generate --env=local
+php artisan make:migration migration_name
+
+php artisan storage:link
+mkdir -p storage/app/attachments
+composer require php-imap/php-imap
+chmod -R 775 storage/app/attachments
+
+* * * * * cd /path/to/your/project && php artisan schedule:run >> /dev/null 2>&1
+
+# Install the IMAP extension
+sudo apt-get update
+sudo apt-get install php-imap
+
+# Enable the IMAP extension
+sudo phpenmod imap
+
+# Restart the web server to apply changes
+sudo systemctl restart apache2  # or 
+
+mkdir -p storage/logs
+touch storage/logs/email-sync.log
+chmod 777 storage/logs/email-sync.log

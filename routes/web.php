@@ -1,9 +1,16 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\HelpdeskController;
+use App\Models\Department;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Console\Scheduling\Schedule;  
 use Inertia\Inertia;
+use Illuminate\Http\Request;
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
@@ -14,31 +21,105 @@ Route::get('/', function () {
     ]);
 });
 
-Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
-
-Route::middleware(['auth', 'verified'])->group(function () {
-    // ...existing dashboard routes...
+Route::middleware('auth')->group(function () {
+    Route::get('/dashboard', function () {
+        return Inertia::render('Dashboard');
+    })->middleware('verified')->name('dashboard');
 
     // Helpdesk Routes
-    Route::get('/helpdesk/support', function () {
-        return Inertia::render('Helpdesk/Support');
-    })->name('helpdesk.support');
+    Route::middleware('verified')->group(function () {
+        // Replace the existing support route with this:
+        Route::get('/helpdesk/support', [HelpdeskController::class, 'support'])
+            ->name('helpdesk.support')
+            ->middleware('auth');
+        
+        // Update this route to use the controller
+        Route::get('/helpdesk/settings', [HelpdeskController::class, 'settings'])
+            ->name('helpdesk.settings')
+            ->middleware('admin');
 
-    Route::get('/helpdesk/settings', function () {
-        return Inertia::render('Helpdesk/Settings');
-    })->name('helpdesk.settings');
+        Route::get('/helpdesk/users', function (Request $request) {
+            return Inertia::render('Helpdesk/Users', [
+                'isAdmin' => $request->user()->is_admin
+            ]);
+        })->name('helpdesk.users');
+    });
 
-    Route::get('/helpdesk/users', function () {
-        return Inertia::render('Helpdesk/Users');
-    })->name('helpdesk.users');
-});
-
-Route::middleware('auth')->group(function () {
+    // Profile Routes
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+});
+
+Route::middleware(['auth', 'admin'])->group(function () {
+    Route::resource('users', UserController::class);
+    Route::resource('departments', DepartmentController::class);
+    Route::put('/users/{user}/password', [UserController::class, 'updatePassword'])
+        ->name('users.password.update');
+    
+    Route::post('/helpdesk/email/sync', [HelpdeskController::class, 'syncEmails'])
+        ->name('helpdesk.email.sync');
+    Route::post('/helpdesk/settings/save', [HelpdeskController::class, 'saveSettings'])
+        ->name('helpdesk.settings.save');
+    
+    // Add these new routes
+    Route::get('/helpdesk/queue/status', [HelpdeskController::class, 'getQueueStatus'])
+        ->name('helpdesk.queue.status');
+    Route::post('/helpdesk/queue/restart', [HelpdeskController::class, 'restartWorkers'])
+        ->name('helpdesk.queue.restart');
+    
+    // Add this new route
+    Route::get('/helpdesk/cron/status', [HelpdeskController::class, 'getCronStatus'])
+        ->name('helpdesk.cron.status');
+    
+    // Add this new route
+    Route::get('/helpdesk/support-users', [HelpdeskController::class, 'getSupportUsers'])
+        ->name('helpdesk.users.list');
+    
+    // Add these new routes
+    Route::delete('/helpdesk/users/{user}', [HelpdeskController::class, 'deleteUser'])
+        ->name('helpdesk.users.delete');
+    Route::get('/helpdesk/users/{user}/edit', [HelpdeskController::class, 'editUser'])
+        ->name('helpdesk.users.edit');
+    Route::get('/helpdesk/tickets/create', [HelpdeskController::class, 'createTicket'])
+        ->name('helpdesk.tickets.create');
+    
+    // Add the update route
+    Route::put('/helpdesk/users/{user}', [HelpdeskController::class, 'updateUser'])
+        ->name('helpdesk.users.update');
+    
+    // Add these new spam management routes
+    Route::get('/helpdesk/spam', [HelpdeskController::class, 'getSpamContacts'])
+        ->name('helpdesk.spam.list');
+    Route::delete('/helpdesk/spam/{spamContact}', [HelpdeskController::class, 'deleteSpamContact'])
+        ->name('helpdesk.spam.delete');
+    Route::post('/helpdesk/spam', [HelpdeskController::class, 'addSpamContact'])
+        ->name('helpdesk.spam.add');
+}); // This is the correct closing brace
+
+// Test routes
+Route::get('/test-log', function() {
+    Log::info('Test log entry');
+    file_put_contents(
+        storage_path('logs/debug.log'),
+        date('Y-m-d H:i:s') . " - Test direct file write\n",
+        FILE_APPEND
+    );
+    return 'Check logs';
+});
+
+Route::get('/test-schedule', function() {
+    Log::info('Test route executed');
+    $schedule = app()->make(Schedule::class);
+    $events = collect($schedule->events())->map(fn($event) => [
+        'command' => $event->command,
+        'expression' => $event->expression,
+    ]);
+    return [
+        'message' => 'Check logs for details',
+        'events' => $events,
+        'next_run' => $schedule->events()[0]->nextRunDate(),
+    ];
 });
 
 require __DIR__.'/auth.php';
