@@ -75,6 +75,11 @@ class HelpdeskController extends Controller
             'imap_configs.*.email' => 'required|email',
             'imap_configs.*.host' => 'required',
             'imap_configs.*.port' => 'required|numeric',
+            'imap_configs.*.username' => 'required|string',
+            'imap_configs.*.password' => 'required|string',
+            'imap_configs.*.enabled' => 'boolean',
+            'imap_configs.*.department_id' => 'nullable|exists:departments,id',
+            'imap_configs.*.imap_settings' => 'array',
             'smtp_config' => 'array',
             'smtp_config.from_name' => 'required|string',
             'smtp_config.email' => 'required|email',
@@ -86,8 +91,7 @@ class HelpdeskController extends Controller
             'signatures' => 'array',
             'signatures.*.name' => 'required|string',
             'signatures.*.content' => 'required|string',
-            'signatures.*.is_default' => 'boolean',
-            'email_settings' => 'array'
+            'signatures.*.isDefault' => 'boolean',  // Changed from is_default to match frontend
         ]);
 
         DB::transaction(function () use ($validated) {
@@ -95,23 +99,31 @@ class HelpdeskController extends Controller
             foreach ($validated['imap_configs'] as $config) {
                 EmailSetting::updateOrCreate(
                     ['email' => $config['email']],
-                    $config
+                    [
+                        'host' => $config['host'],
+                        'port' => $config['port'],
+                        'username' => $config['username'],
+                        'password' => $config['password'],
+                        'enabled' => $config['enabled'] ?? true,
+                        'department_id' => $config['department_id'],
+                        'imap_settings' => $config['imap_settings']
+                    ]
                 );
             }
 
-            // Save SMTP config
+            // Save SMTP config as-is since field names match
             DB::table('smtp_settings')->updateOrInsert(
                 ['id' => 1],
                 $validated['smtp_config']
             );
 
-            // Save signatures
+            // Save signatures with case conversion for isDefault
             foreach ($validated['signatures'] as $signature) {
                 EmailSignature::updateOrCreate(
                     ['name' => $signature['name']],
                     [
                         'content' => $signature['content'],
-                        'is_default' => $signature['is_default']
+                        'is_default' => $signature['isDefault'] // Convert camelCase to snake_case
                     ]
                 );
             }
