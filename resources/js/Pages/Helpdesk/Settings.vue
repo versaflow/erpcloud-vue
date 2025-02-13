@@ -172,7 +172,7 @@ const saveSettings = async () => {
         const { data } = await axios.post(route('helpdesk.settings.save'), {
             imap_configs: imapConfigs.value,
             smtp_config: {
-                from_name: smtpConfig.value.from_name,
+                from_name: smtpConfig.value.fromName,
                 email: smtpConfig.value.email,
                 host: smtpConfig.value.host,
                 port: smtpConfig.value.port,
