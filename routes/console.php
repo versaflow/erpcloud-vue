@@ -6,27 +6,32 @@ use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Facades\Log;
 use App\Console\Commands\SyncImapEmails;
 
-// Register the SyncImapEmails command
-Artisan::command('emails:sync', function() {
-    Artisan::call('emails:sync');
-})->purpose('Sync all enabled IMAP accounts')
-  ->name('Sync IMAP Emails');
+// Increase memory limit globally for CLI
+ini_set('memory_limit', '1G');
 
-// Schedule email sync
+// Register command directly without closure
+Artisan::starting(function ($artisan) {
+    $artisan->resolve(SyncImapEmails::class);
+});
+
+// Schedule email sync with memory management
 Schedule::command('emails:sync')
     ->everyMinute()
     ->appendOutputTo(storage_path('logs/email-sync.log'))
     ->before(function () {
+        gc_collect_cycles(); // Clean up before run
         Log::info('Starting scheduled email sync');
     })
     ->after(function () {
         Log::info('Completed scheduled email sync');
+        gc_collect_cycles(); // Clean up after run
     })
-    ->withoutOverlapping();
+    ->withoutOverlapping()
+    ->runInBackground(); // Run in background to prevent memory issues
 
-// Keep debug logging
+// Keep debug logging minimal
 Schedule::call(function () {
-    Log::info('Schedule test ran at: ' . now());
+    Log::info('Schedule check: ' . now());
 })->everyMinute();
 
 // Default inspire command
