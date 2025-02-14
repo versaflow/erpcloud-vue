@@ -15,7 +15,14 @@ class Message extends Model
         'email_message_id',
         'support_user_id',
         'user_id',
-        'type'
+        'type',
+        'direction',
+        'from_name',
+        'from_email',
+        'to_email',
+        'cc',
+        'quoted_text',
+        'signature'
     ];
 
     protected $with = ['attachments'];
@@ -70,6 +77,13 @@ class Message extends Model
         // Update conversation's updated_at when new message is added
         static::created(function ($message) {
             $message->conversation->touch();
+        });
+
+        static::saving(function ($message) {
+            // Cleanup content if needed
+            if (strlen($message->content) > 16777215) { // MySQL MEDIUMTEXT limit
+                $message->content = substr($message->content, 0, 16777215);
+            }
         });
     }
 }
