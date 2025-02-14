@@ -8,8 +8,7 @@ use App\Console\Commands\SyncImapEmails;
 
 // Register the SyncImapEmails command
 Artisan::command('emails:sync', function() {
-    $command = new SyncImapEmails();
-    return $command->handle();
+    Artisan::call('emails:sync');
 })->purpose('Sync all enabled IMAP accounts')
   ->name('Sync IMAP Emails');
 
