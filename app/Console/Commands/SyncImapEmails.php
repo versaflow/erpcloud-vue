@@ -15,53 +15,31 @@ class SyncImapEmails extends Command
     public function handle()
     {
         try {
-            // Set higher memory limit
-            ini_set('memory_limit', '1G');
+            // Use reasonable memory limit
+            ini_set('memory_limit', '256M');
             
-            $this->info('Starting IMAP sync: ' . now());
-            Log::info('SyncImapEmails command started');
+            Log::info('Starting sync');
             
-            // Mark cron as running
-            cache()->put('last_cron_run', now());
-            
-            // Use chunking for better memory management
+            // Process in smaller chunks
             EmailSetting::where('enabled', true)
-                ->chunkById(5, function($accounts) {
+                ->chunkById(2, function($accounts) {
                     foreach ($accounts as $account) {
                         try {
-                            $this->info("Processing sync for {$account->email}...");
-                            Log::info("Starting sync for account", ['email' => $account->email]);
-                            
-                            FetchImapEmails::dispatchSync($account);
-                            
-                            $this->info("Successfully synced {$account->email}");
-                            Log::info("Sync completed for account", ['email' => $account->email]);
-                            
-                            // Force garbage collection after each account
-                            gc_collect_cycles();
+                            FetchImapEmails::dispatch($account); // Use queue instead of dispatchSync
+                            $this->info("Queued sync for {$account->email}");
                             
                         } catch (\Exception $e) {
-                            $this->error("Failed to sync {$account->email}: {$e->getMessage()}");
-                            Log::error("Failed to sync email account", [
-                                'email' => $account->email,
-                                'error' => $e->getMessage(),
-                                'trace' => $e->getTraceAsString()
-                            ]);
+                            Log::error("Failed to queue {$account->email}: {$e->getMessage()}");
                         }
+                        
+                        gc_collect_cycles(); // Clean up after each account
                     }
                 });
             
             return 0;
             
         } catch (\Exception $e) {
-            $message = "Fatal error in email sync: {$e->getMessage()}";
-            $this->error($message);
-            Log::error($message, [
-                'exception' => get_class($e),
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            
+            Log::error("Sync error: " . $e->getMessage());
             return 1;
         }
     }
