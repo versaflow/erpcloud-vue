@@ -26,7 +26,7 @@ class SyncImapEmails extends Command
                     foreach ($accounts as $account) {
                         try {
                             FetchImapEmails::dispatch($account); // Use queue instead of dispatchSync
-                            $this->info("Queued sync for {$account->email}");
+                            Log::info("Queued sync for {$account->email}");
                             
                         } catch (\Exception $e) {
                             Log::error("Failed to queue {$account->email}: {$e->getMessage()}");
