@@ -4,31 +4,33 @@ use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Facades\Log;
+use App\Console\Commands\SyncImapEmails;
 
-// Register the emails:sync command
+// Register the SyncImapEmails command
 Artisan::command('emails:sync', function() {
-    $this->info('Starting sync at: ' . now());
-    Log::info('SyncImapEmails started');
-    
-    // Simple test to verify it's running
-    cache()->put('last_cron_run', now());
-    
-    $this->info('Sync completed');
-    return 0;
-})->purpose('Sync all enabled IMAP accounts');
+    $command = new SyncImapEmails();
+    return $command->handle();
+})->purpose('Sync all enabled IMAP accounts')
+  ->name('Sync IMAP Emails');
 
-// Define the schedule
+// Schedule email sync
 Schedule::command('emails:sync')
-    ->name('Sync IMAP Emails')
     ->everyMinute()
     ->appendOutputTo(storage_path('logs/email-sync.log'))
+    ->before(function () {
+        Log::info('Starting scheduled email sync');
+    })
+    ->after(function () {
+        Log::info('Completed scheduled email sync');
+    })
     ->withoutOverlapping();
 
-// Add debug logging
+// Keep debug logging
 Schedule::call(function () {
     Log::info('Schedule test ran at: ' . now());
 })->everyMinute();
 
+// Default inspire command
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');

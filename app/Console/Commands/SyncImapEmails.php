@@ -21,30 +21,31 @@ class SyncImapEmails extends Command
             // Mark cron as running
             cache()->put('last_cron_run', now());
             
-            // Get all enabled email accounts
+            // Get all enabled email accounts with logging
             $accounts = EmailSetting::where('enabled', true)->get();
             
-            $this->info("Found {$accounts->count()} enabled accounts");
-            Log::info("Found enabled email accounts", ['count' => $accounts->count()]);
-            
-            $successCount = 0;
-            $failureCount = 0;
+            $count = $accounts->count();
+            $this->info("Found {$count} enabled accounts");
+            Log::info("Found enabled email accounts", ['count' => $count]);
+
+            if ($count === 0) {
+                $this->warn('No enabled email accounts found to sync');
+                Log::warning('No enabled email accounts found for sync');
+                return 0;
+            }
             
             // Process each account
             foreach ($accounts as $account) {
                 try {
-                    $this->info("Syncing {$account->email}...");
+                    $this->info("Processing sync for {$account->email}...");
                     Log::info("Starting sync for account", ['email' => $account->email]);
                     
-                    // Use dispatchSync for immediate processing
                     FetchImapEmails::dispatchSync($account);
                     
-                    $successCount++;
                     $this->info("Successfully synced {$account->email}");
                     Log::info("Sync completed for account", ['email' => $account->email]);
                     
                 } catch (\Exception $e) {
-                    $failureCount++;
                     $this->error("Failed to sync {$account->email}: {$e->getMessage()}");
                     Log::error("Failed to sync email account", [
                         'email' => $account->email,
@@ -53,15 +54,6 @@ class SyncImapEmails extends Command
                     ]);
                 }
             }
-            
-            // Log final results
-            $summary = "Sync completed. Success: $successCount, Failed: $failureCount";
-            $this->info($summary);
-            Log::info("Email sync completed", [
-                'success_count' => $successCount,
-                'failure_count' => $failureCount,
-                'total_accounts' => $accounts->count()
-            ]);
             
             return 0;
             
