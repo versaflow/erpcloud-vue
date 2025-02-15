@@ -265,7 +265,7 @@ const columnDefs = [
         flex: 2,
         cellRenderer: params => `
             <div class="flex items-center gap-2">
-                <span class="w-2 h-2 mr-2 inline-block flex-shrink-0 ${params.data.unread_messages_count ? 'rounded-full bg-red-500' : ''}" aria-hidden="true"></span>
+                <span class="w-2 h-2 mr-2 inline-block ${params.data.unread_messages_count ? 'rounded-full bg-red-500' : ''}" aria-hidden="true"></span>
                 <span class="font-medium text-gray-900 truncate">${params.value}</span>
                 ${params.data.is_priority ? '<span class="text-red-500">⚡</span>' : ''}
             </div>
@@ -309,9 +309,8 @@ const columnDefs = [
         },
         cellRenderer: params => {
             const dept = props.departments.find(d => d.id === params.value);
-            return `<div class="truncate whitespace-nowrap">${dept ? dept.name : 'Unassigned'}</div>`;
-        },
-        cellClass: 'single-line-cell'
+            return dept ? dept.name : 'Unassigned';
+        }
     },
     { 
         headerName: 'Agent',
@@ -334,9 +333,8 @@ const columnDefs = [
         },
         cellRenderer: params => {
             const agent = props.agents.find(a => a.id === params.value);
-            return `<div class="truncate whitespace-nowrap">${agent ? agent.name : 'Unassigned'}</div>`;
-        },
-        cellClass: 'single-line-cell'
+            return agent ? agent.name : 'Unassigned';
+        }
     },
     { 
         headerName: 'Last Updated',
@@ -1010,19 +1008,5 @@ select {
 :deep(.non-editable-cell) {
     background-color: #f9fafb;
     cursor: not-allowed;
-}
-
-.nowrap-cell {
-    white-space: nowrap;
-}
-
-/* Add styles for single line cells */
-:deep(.single-line-cell) {
-    @apply overflow-hidden;
-}
-
-:deep(.single-line-cell > div) {
-    @apply truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-full;
-    text-overflow: ellipsis;
 }
 </style>

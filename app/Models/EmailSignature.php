@@ -10,6 +10,7 @@ class EmailSignature extends Model
     use HasFactory;
 
     protected $fillable = [
+        'email_setting_id', // Add this
         'name',
         'content',
         'is_default'
@@ -18,4 +19,9 @@ class EmailSignature extends Model
     protected $casts = [
         'is_default' => 'boolean'
     ];
+
+    public function emailSetting()
+    {
+        return $this->belongsTo(EmailSetting::class);
+    }
 }

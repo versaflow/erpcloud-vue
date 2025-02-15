@@ -123,16 +123,6 @@ class FetchImapEmails implements ShouldQueue
                 ]);
             foreach ($messages as $message) {
 
-
-                $messageDate = \Carbon\Carbon::parse($message->date);
-                if ($lastSync && $messageDate->lte($lastSync)) {
-                    Log::channel('email-sync')->info('Skipping older message:', [
-                        'message_date' => $messageDate,
-                        'last_sync' => $lastSync
-                    ]);
-                    continue;
-                }
-
                 $this->processEmail($message);
             }
 
@@ -417,6 +407,12 @@ class FetchImapEmails implements ShouldQueue
                 $content = nl2br(htmlspecialchars($visibleContent));
             }
 
+            Log::channel('email-sync')->debug('Parsed email content:', [
+                'original_length' => strlen($rawContent),
+                'parsed_length' => strlen($visibleContent),
+                'is_html' => strpos($rawContent, '<html') !== false,
+                'fragments_count' => count($fragments ?? [])
+            ]);
 
             return $content;
         } catch (\Exception $e) {

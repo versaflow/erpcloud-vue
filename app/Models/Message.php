@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\MessageStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
@@ -22,10 +23,21 @@ class Message extends Model
         'to_email',
         'cc',
         'quoted_text',
-        'signature'
+        'signature',
+        'status',
+        'read_at'
     ];
 
     protected $with = ['attachments'];
+
+    protected $casts = [
+        'status' => MessageStatus::class,
+        'read_at' => 'datetime'
+    ];
+
+    protected $attributes = [
+        'status' => MessageStatus::UNREAD
+    ];
 
     public function conversation()
     {
@@ -68,6 +80,32 @@ class Message extends Model
     public function getSenderTypeAttribute()
     {
         return $this->support_user_id ? 'customer' : 'agent';
+    }
+
+    public function markAsRead()
+    {
+        $this->update([
+            'status' => MessageStatus::READ,
+            'read_at' => now()
+        ]);
+    }
+
+    public function markAsUnread()
+    {
+        $this->update([
+            'status' => MessageStatus::UNREAD,
+            'read_at' => null
+        ]);
+    }
+
+    public function scopeUnread($query)
+    {
+        return $query->where('status', MessageStatus::UNREAD);
+    }
+
+    public function scopeRead($query)
+    {
+        return $query->where('status', MessageStatus::READ);
     }
 
     protected static function boot()

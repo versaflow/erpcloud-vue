@@ -10,7 +10,9 @@ use App\Models\Conversation;
 use App\Models\User;
 use App\Jobs\FetchImapEmails;  // Add this import
 use App\Models\SpamContact;
+use App\Enums\ConversationStatus;
 use Illuminate\Http\Request;
+use App\Models\SmtpSetting; // Add this import
 
 use Inertia\Inertia;
 use Illuminate\Support\Facades\DB;
@@ -26,11 +28,37 @@ class HelpdeskController extends Controller
             'departments' => Department::withCount('users')
                 ->select('id', 'name', 'email', 'is_active')
                 ->get(),
-            'emailSettings' => [
-                'imap_accounts' => EmailSetting::with('department')->get(),
-                'smtp_config' => DB::table('smtp_settings')->first(),
-                'signatures' => EmailSignature::all()
-            ]
+            'emailSettings' => EmailSetting::with(['smtpSetting', 'signatures'])
+                ->get()
+                ->map(function ($setting) {
+                    return [
+                        'id' => $setting->id,
+                        'email' => $setting->email,
+                        'host' => $setting->host,
+                        'port' => $setting->port,
+                        'username' => $setting->username,
+                        'password' => $setting->password,
+                        'enabled' => $setting->enabled,
+                        'department_id' => $setting->department_id,
+                        'imap_settings' => $setting->imap_settings,
+                        'smtp_setting' => $setting->smtpSetting ? [
+                            'from_name' => $setting->smtpSetting->from_name,
+                            'email' => $setting->smtpSetting->email,
+                            'host' => $setting->smtpSetting->host,
+                            'port' => $setting->smtpSetting->port,
+                            'username' => $setting->smtpSetting->username,
+                            'password' => $setting->smtpSetting->password,
+                            'encryption' => $setting->smtpSetting->encryption,
+                        ] : null,
+                        'signatures' => $setting->signatures->map(function ($sig) {
+                            return [
+                                'name' => $sig->name,
+                                'content' => $sig->content,
+                                'isDefault' => $sig->is_default,
+                            ];
+                        })
+                    ];
+                })
         ]);
     }
 
@@ -75,49 +103,78 @@ class HelpdeskController extends Controller
             'imap_configs.*.email' => 'required|email',
             'imap_configs.*.host' => 'required',
             'imap_configs.*.port' => 'required|numeric',
-            'smtp_config' => 'array',
-            'smtp_config.from_name' => 'required|string',
-            'smtp_config.email' => 'required|email',
-            'smtp_config.host' => 'required|string',
-            'smtp_config.port' => 'required|numeric',
-            'smtp_config.username' => 'required|string',
-            'smtp_config.password' => 'required|string',
-            'smtp_config.encryption' => 'required|string',
-            'signatures' => 'array',
-            'signatures.*.name' => 'required|string',
-            'signatures.*.content' => 'required|string',
-            'signatures.*.is_default' => 'boolean',
-            'email_settings' => 'array'
+            'imap_configs.*.username' => 'required',
+            'imap_configs.*.password' => 'required',
+            'imap_configs.*.enabled' => 'boolean',
+            'imap_configs.*.department_id' => 'nullable|exists:departments,id',
+            'imap_configs.*.imap_settings' => 'required|array',
+            'imap_configs.*.imap_settings.encryption' => 'required|string|in:ssl,tls,none',
+            'imap_configs.*.imap_settings.validate_cert' => 'required|boolean',
+            'imap_configs.*.smtp_config' => 'required|array',
+            'imap_configs.*.smtp_config.from_name' => 'required|string',
+            'imap_configs.*.smtp_config.email' => 'required|email',
+            'imap_configs.*.smtp_config.host' => 'required|string',
+            'imap_configs.*.smtp_config.port' => 'required|numeric',
+            'imap_configs.*.smtp_config.username' => 'required|string',
+            'imap_configs.*.smtp_config.password' => 'required|string',
+            'imap_configs.*.smtp_config.encryption' => 'required|string',
+            'imap_configs.*.signatures' => 'array',
+            'imap_configs.*.signatures.*.name' => 'required|string',
+            'imap_configs.*.signatures.*.content' => 'required|string',
+            'imap_configs.*.signatures.*.isDefault' => 'boolean'
         ]);
 
         DB::transaction(function () use ($validated) {
-            // Save IMAP configs
             foreach ($validated['imap_configs'] as $config) {
-                EmailSetting::updateOrCreate(
+                // First save the email setting to get an ID
+                $emailSetting = EmailSetting::updateOrCreate(
                     ['email' => $config['email']],
-                    $config
-                );
-            }
-
-            // Save SMTP config
-            DB::table('smtp_settings')->updateOrInsert(
-                ['id' => 1],
-                $validated['smtp_config']
-            );
-
-            // Save signatures
-            foreach ($validated['signatures'] as $signature) {
-                EmailSignature::updateOrCreate(
-                    ['name' => $signature['name']],
                     [
-                        'content' => $signature['content'],
-                        'is_default' => $signature['is_default']
+                        'host' => $config['host'],
+                        'port' => $config['port'],
+                        'username' => $config['username'],
+                        'password' => $config['password'],
+                        'enabled' => $config['enabled'] ?? true,
+                        'department_id' => $config['department_id'],
+                        'imap_settings' => json_encode($config['imap_settings'])
                     ]
                 );
+
+                // Save SMTP config
+                SmtpSetting::updateOrCreate(
+                    ['email_setting_id' => $emailSetting->id],
+                    [
+                        'from_name' => $config['smtp_config']['from_name'],
+                        'email' => $config['smtp_config']['email'],
+                        'host' => $config['smtp_config']['host'],
+                        'port' => $config['smtp_config']['port'],
+                        'username' => $config['smtp_config']['username'],
+                        'password' => $config['smtp_config']['password'],
+                        'encryption' => $config['smtp_config']['encryption']
+                    ]
+                );
+
+                // Handle signatures - Modified this part
+                if (isset($config['signatures']) && is_array($config['signatures'])) {
+                    // Delete existing signatures
+                    $emailSetting->signatures()->delete();
+
+                    // Create new signatures
+                    foreach ($config['signatures'] as $signature) {
+                        $emailSetting->signatures()->create([
+                            'name' => $signature['name'],
+                            'content' => $signature['content'],
+                            'is_default' => $signature['isDefault'] ?? false
+                        ]);
+                    }
+                }
             }
         });
 
-        return redirect()->back()->with('success', 'Settings saved successfully');
+        return response()->json([
+            'message' => 'Settings saved successfully',
+            'imap_accounts' => EmailSetting::with(['smtpSetting', 'signatures'])->get()
+        ]);
     }
 
     public function support(Request $request)
@@ -154,17 +211,13 @@ class HelpdeskController extends Controller
         // Return with logged data
         $response = [
             'conversations' => Conversation::with([
-                'supportUser' => function($query) {
-                    // Load all support user fields
-                    $query->select([
-                        'id', 'name', 'email', 'phone', 'company',
-                        'location', 'timezone', 'tags', 'notes',
-                        'last_seen_at', 'created_at'
-                    ]);
-                },
+                'supportUser',
                 'department',
                 'messages.attachments'
             ])
+            ->withCount(['messages' => function($query) {
+                $query->where('status', 'unread');
+            }])
             ->latest()
             ->get()
             ->map(fn($conversation) => [
@@ -214,7 +267,8 @@ class HelpdeskController extends Controller
                         'url' => $attachment->url,
                         'type' => $attachment->type
                     ])
-                ])
+                ]),
+                'unread_messages_count' => $conversation->messages_count,
             ]),
             'departments' => $departments,
             'agents' => $agents->map(fn($agent) => [
@@ -385,7 +439,173 @@ class HelpdeskController extends Controller
             'reason' => 'nullable|string'
         ]);
 
-        SpamContact::create($validated);
-        return response()->json(['message' => 'Contact added to spam list']);
+        try {
+            DB::transaction(function () use ($validated) {
+                // Create spam contact
+                SpamContact::create($validated);
+
+                // Update any conversations from this email to spam status
+                if ($validated['type'] === 'email') {
+                    Conversation::where('from_email', $validated['value'])
+                        ->update([
+                            'status' => 'spam',
+                            'updated_at' => now()
+                        ]);
+                }
+            });
+
+            return response()->json([
+                'message' => 'Contact added to spam list and conversations updated'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to add contact to spam list'
+            ], 500);
+        }
+    }
+
+    public function assignDepartment(Request $request, Conversation $conversation)
+    {
+        $validated = $request->validate([
+            'department_id' => 'nullable|exists:departments,id'
+        ]);
+
+        $conversation->update([
+            'department_id' => $validated['department_id']
+        ]);
+
+        return response()->json([
+            'message' => 'Department assigned successfully',
+            'conversation' => $conversation
+        ]);
+    }
+
+    public function assignAgent(Request $request, Conversation $conversation)
+
+    {
+        $validated = $request->validate([
+            'agent_id' => 'nullable|sometimes|exists:users,id'
+        ]);
+
+        try {
+            DB::transaction(function () use ($conversation, $validated) {
+                $conversation->update([
+                    'agent_id' => $validated['agent_id'],
+                    //TODO:undate status to assigned
+                    // 'status' => ConversationStatus::ASSIGNED
+                ]);
+            });
+
+            return response()->json([
+                'message' => 'Agent assigned successfully',
+                'conversation' => $conversation
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to assign agent'
+            ], 500);
+        }
+    }
+
+    public function archiveConversation(Conversation $conversation)
+    {
+        try {
+            $conversation->update([
+                'status' => ConversationStatus::CLOSED,  // Changed from 'archived' to CLOSED enum
+                'archived_at' => now()
+            ]);
+
+            return response()->json([
+                'message' => 'Conversation archived successfully',
+                'conversation' => $conversation
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to archive conversation'
+            ], 500);
+        }
+    }
+
+    public function unmarkSpam(Conversation $conversation)
+    {
+        try {
+            DB::transaction(function () use ($conversation) {
+                // Remove from spam contacts if exists
+                SpamContact::where('type', 'email')
+                    ->where('value', $conversation->from_email)
+                    ->delete();
+
+                // Update conversation status
+                $conversation->update([
+                    'status' => ConversationStatus::NEW,
+                    'updated_at' => now()
+                ]);
+            });
+
+            return response()->json([
+                'message' => 'Conversation removed from spam',
+                'conversation' => $conversation
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to remove conversation from spam'
+            ], 500);
+        }
+    }
+
+    public function unarchiveConversation(Conversation $conversation)
+    {
+        try {
+            $conversation->update([
+                'status' => ConversationStatus::NEW,
+                'archived_at' => null
+            ]);
+
+            return response()->json([
+                'message' => 'Conversation unarchived successfully',
+                'conversation' => $conversation
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to unarchive conversation'
+            ], 500);
+        }
+    }
+
+    public function updateStatus(Request $request, Conversation $conversation)
+    {
+        $validated = $request->validate([
+            'status' => 'required|string|in:' . implode(',', ConversationStatus::values())
+        ]);
+
+        $conversation->update([
+            'status' => $validated['status']
+        ]);
+
+        return response()->json([
+            'message' => 'Conversation status updated successfully',
+            'conversation' => $conversation
+        ]);
+    }
+
+    public function markMessagesRead(Conversation $conversation)
+    {
+        try {
+            $conversation->messages()
+                ->where('status', 'unread')
+                ->update([
+                    'status' => 'read',
+                    'read_at' => now()
+                ]);
+
+            return response()->json([
+                'message' => 'Messages marked as read',
+                'conversation' => $conversation->load('messages')
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to mark messages as read'
+            ], 500);
+        }
     }
 }

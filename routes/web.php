@@ -95,6 +95,28 @@ Route::middleware(['auth', 'admin'])->group(function () {
         ->name('helpdesk.spam.delete');
     Route::post('/helpdesk/spam', [HelpdeskController::class, 'addSpamContact'])
         ->name('helpdesk.spam.add');
+    
+    // Add these new assignment routes
+    Route::post('/helpdesk/conversations/{conversation}/assign-department', [HelpdeskController::class, 'assignDepartment'])
+        ->name('helpdesk.conversations.assign-department');
+    Route::post('/helpdesk/conversations/{conversation}/assign-agent', [HelpdeskController::class, 'assignAgent'])
+        ->name('helpdesk.conversations.assign-agent');
+    
+    // Add these new routes
+    Route::post('/helpdesk/conversations/{conversation}/archive', [HelpdeskController::class, 'archiveConversation'])
+        ->name('helpdesk.conversations.archive');
+    
+    Route::post('/helpdesk/conversations/{conversation}/unspam', [HelpdeskController::class, 'unmarkSpam'])
+        ->name('helpdesk.conversations.unspam');
+    
+    Route::post('/helpdesk/conversations/{conversation}/unarchive', [HelpdeskController::class, 'unarchiveConversation'])
+        ->name('helpdesk.conversations.unarchive');
+    
+    Route::post('/helpdesk/conversations/{conversation}/status', [HelpdeskController::class, 'updateStatus'])
+        ->name('helpdesk.conversations.status');
+    
+    Route::post('/helpdesk/conversations/{conversation}/read', [HelpdeskController::class, 'markMessagesRead'])
+        ->name('helpdesk.conversations.read');
 }); // This is the correct closing brace
 
 // Test routes

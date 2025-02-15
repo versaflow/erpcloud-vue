@@ -24,6 +24,7 @@ return new class extends Migration
 
         Schema::create('smtp_settings', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('email_setting_id')->constrained('email_settings')->onDelete('cascade');
             $table->string('from_name');
             $table->string('email');
             $table->string('host');
@@ -36,6 +37,7 @@ return new class extends Migration
 
         Schema::create('email_signatures', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('email_setting_id')->constrained('email_settings')->onDelete('cascade');
             $table->string('name');
             $table->text('content');
             $table->boolean('is_default')->default(false);
@@ -45,9 +47,9 @@ return new class extends Migration
 
     public function down()
     {
-        Schema::dropIfExists('email_settings');
-        Schema::dropIfExists('smtp_settings');
         Schema::dropIfExists('email_signatures');
+        Schema::dropIfExists('smtp_settings');
+        Schema::dropIfExists('email_settings');
     }
 };
 

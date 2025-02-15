@@ -1,5 +1,6 @@
 <script setup>
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
+import DOMPurify from 'dompurify';
 import Icon from '@/Components/Icons/Index.vue';
 
 const props = defineProps({
@@ -25,6 +26,7 @@ const formattedDate = computed(() => {
 const isIncoming = computed(() => props.message.direction === 'incoming');
 
 const getFileIcon = (type) => {
+    if (!type) return 'file'; // Default icon if type is null/undefined
     if (type.startsWith('image/')) return 'image';
     if (type.startsWith('video/')) return 'video';
     if (type.includes('pdf')) return 'pdf';
@@ -34,7 +36,20 @@ const getFileIcon = (type) => {
 };
 
 const getAttachmentSizeClass = (type) => ({
-    'max-w-[200px] max-h-[200px] rounded-lg': type.startsWith('image/')
+    'max-w-[200px] max-h-[200px] rounded-lg': type && type.startsWith('image/')
+});
+
+const sanitizedContent = computed(() => {
+    return DOMPurify.sanitize(props.message.content, {
+        ALLOWED_TAGS: [
+            'p', 'br', 'b', 'strong', 'i', 'em', 'u', 'ul', 'ol', 'li',
+            'span', 'div', 'blockquote', 'pre', 'code', 'hr', 'h1', 'h2',
+            'h3', 'h4', 'h5', 'h6', 'table', 'thead', 'tbody', 'tr', 'td',
+            'th', 'a', 'img'
+        ],
+        ALLOWED_ATTR: ['href', 'target', 'src', 'alt', 'class', 'style'],
+        ALLOWED_STYLES: ['color', 'background-color', 'font-size', 'font-family', 'text-align']
+    });
 });
 </script>
 
@@ -77,7 +92,7 @@ const getAttachmentSizeClass = (type) => ({
 
         <!-- Message Content -->
         <div class="p-4">
-            <div class="prose max-w-none" v-html="message.content"></div>
+            <div class="prose max-w-none" v-html="sanitizedContent"></div>
 
             <!-- Quote indicators for email threads -->
             <template v-if="message.quoted_text">
@@ -97,7 +112,7 @@ const getAttachmentSizeClass = (type) => ({
                          :key="attachment.id"
                          class="flex flex-col border rounded-lg overflow-hidden bg-gray-50">
                         <!-- Image preview -->
-                        <img v-if="attachment.type?.startsWith('image/')"
+                        <img v-if="attachment.type && attachment.type.startsWith('image/')"
                              :src="attachment.url"
                              :alt="attachment.name"
                              class="w-full h-32 object-cover" />
@@ -106,10 +121,10 @@ const getAttachmentSizeClass = (type) => ({
                         <div class="p-2">
                             <div class="flex items-center gap-2">
                                 <Icon :name="getFileIcon(attachment.type)" size="4" class="text-gray-400" />
-                                <span class="text-sm font-medium truncate">{{ attachment.name }}</span>
+                                <span class="text-sm font-medium truncate">{{ attachment.name || 'Unnamed file' }}</span>
                             </div>
                             <div class="flex items-center justify-between mt-2">
-                                <span class="text-xs text-gray-500">{{ attachment.size }}</span>
+                                <span class="text-xs text-gray-500">{{ attachment.size || 'Unknown size' }}</span>
                                 <a :href="attachment.url" 
                                    target="_blank"
                                    class="text-xs text-indigo-600 hover:text-indigo-800">
@@ -156,5 +171,46 @@ const getAttachmentSizeClass = (type) => ({
 :deep(.prose blockquote) {
     border-left-color: #e5e7eb;
     color: #6b7280;
+}
+
+.message-content :deep(a) {
+    color: #2563eb; /* blue-600 */
+    text-decoration: underline;
+}
+
+.message-content :deep(blockquote) {
+    border-left: 3px solid #e5e7eb;
+    padding-left: 1rem;
+    margin: 1rem 0;
+    color: #4b5563;
+}
+
+.message-content :deep(pre) {
+    background: #f3f4f6;
+    padding: 1rem;
+    border-radius: 0.375rem;
+    overflow-x: auto;
+}
+
+.message-content :deep(img) {
+    max-width: 100%;
+    height: auto;
+    border-radius: 0.375rem;
+}
+
+.message-content :deep(table) {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1rem 0;
+}
+
+.message-content :deep(th),
+.message-content :deep(td) {
+    border: 1px solid #e5e7eb;
+    padding: 0.5rem;
+}
+
+.message-content :deep(th) {
+    background: #f3f4f6;
 }
 </style>

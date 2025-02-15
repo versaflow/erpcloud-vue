@@ -7,9 +7,11 @@ import ResponsiveNavLink from '@/Components/ResponsiveNavLink.vue';
 import SideNav from '@/Layouts/SideNav.vue';
 import { Link } from '@inertiajs/vue3';
 import { useSidebar } from '@/Composables/useSidebar.js';
+import Toast from '@/Components/Toast.vue';
 
 const showingNavigationDropdown = ref(false);
 const { isCollapsed } = useSidebar();
+
 
 const mainContentClass = computed(() => ({
   'main-content': true,
@@ -94,11 +96,12 @@ const mainContentClass = computed(() => ({
             <div class="dashboard-layout">
                 <SideNav />
                 <!-- Page Content -->
-                <main :class="mainContentClass">
+                <main :class="mainContentClass" s>
                     <slot />
                 </main>
             </div>
         </div>
+        <Toast /> 
     </div>
 </template>
 

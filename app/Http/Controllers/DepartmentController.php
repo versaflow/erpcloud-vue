@@ -18,7 +18,8 @@ class DepartmentController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255|unique:departments'
+            'name' => 'required|string|max:255|unique:departments',
+            'is_active' => 'boolean'
         ]);
 
         Department::create($validated);
@@ -29,7 +30,8 @@ class DepartmentController extends Controller
     public function update(Request $request, Department $department)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255|unique:departments,name,' . $department->id
+            'name' => 'required|string|max:255|unique:departments,name,' . $department->id,
+            'is_active' => 'boolean'
         ]);
 
         $department->update($validated);
