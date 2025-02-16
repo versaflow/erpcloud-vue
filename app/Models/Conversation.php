@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ConversationStatus;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Conversation extends Model
 {
@@ -47,6 +48,14 @@ class Conversation extends Model
     public function department()
     {
         return $this->belongsTo(Department::class);
+    }
+
+    // Remove the attachments() method as it's now linked to Message model
+    
+    // Add a method to get all attachments through messages
+    public function getAllAttachments()
+    {
+        return Attachment::whereIn('message_id', $this->messages()->pluck('id'));
     }
 
     // Helper method to assign agent

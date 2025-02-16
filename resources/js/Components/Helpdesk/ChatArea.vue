@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import Icon from '@/Components/Icons/Index.vue';
 import MessageBox from './MessageBox.vue';
@@ -42,6 +42,10 @@ const props = defineProps({
     }
 });
 
+onMounted(() => {
+   console.log('Conversation:', props.conversation);
+});
+
 const emit = defineEmits(['assign', 'send-message', 'mark-spam', 'archive', 'escalate', 'transfer']);
 
 const page = usePage();
@@ -80,9 +84,34 @@ watch(() => props.conversation, (newConv) => {
     });
 }, { immediate: true });
 
+// Add ref for messages container
+const messagesContainer = ref(null);
+
+// Add function to scroll to first unread message or end
+const scrollToFirstUnreadOrEnd = () => {
+    if (!messagesContainer.value) return;
+
+    // Find first unread message
+    const firstUnreadMessage = props.conversation.messages.find(m => !m.read_at);
+    
+    if (firstUnreadMessage) {
+        // Find the message element
+        const unreadElement = document.getElementById(`message-${firstUnreadMessage.id}`);
+        if (unreadElement) {
+            unreadElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    } else {
+        // If no unread messages, scroll to bottom
+        messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+    }
+};
+
 // Add watch effect to mark messages as read when conversation changes
 watch(() => props.conversation, async (newConversation) => {
     if (newConversation?.id) {
+        nextTick(() => {
+            scrollToFirstUnreadOrEnd();
+        });
         try {
             await axios.post(`/helpdesk/conversations/${newConversation.id}/read`);
         } catch (error) {
@@ -498,13 +527,14 @@ const isDevelopment = process.env.NODE_ENV === 'development';
             </div>
         </div>
 
-        <!-- Messages area scrolls -->
-        <div class="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900">
+        <!-- Update messages area with ref -->
+        <div class="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900" ref="messagesContainer">
             <div class="h-[calc(100% - 20px)]"> <!-- Reduced height by 20px -->
-                <MessageBox v-for="(message, index) in conversation.messages"
+                <MessageBox v-for="message in conversation.messages"
                            :key="message.id"
+                           :id="`message-${message.id}`"
                            :message="message"
-                           :is-first="index === 0" />
+                           :conversation="conversation" />
             </div>
         </div>
 

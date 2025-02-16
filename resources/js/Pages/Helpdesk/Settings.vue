@@ -91,13 +91,16 @@ const updateImapConfig = (config) => {
     hasChanges.value = true;
 };
 
+// Change from single isSyncing to a Map
+const syncingStates = ref(new Map());
+
 const syncEmails = async (imapConfig) => {
     if (!imapConfig.id) {
         alert('Please save the email settings first before syncing.');
         return;
     }
 
-    isSyncing.value = true;
+    syncingStates.value.set(imapConfig.id, true);
     try {
         const response = await axios.post(route('helpdesk.email.sync'), {
             email_id: imapConfig.id
@@ -109,9 +112,12 @@ const syncEmails = async (imapConfig) => {
         console.error('Sync failed:', error);
         alert('Failed to sync emails: ' + (error.response?.data?.error || error.message));
     } finally {
-        isSyncing.value = false;
+        syncingStates.value.set(imapConfig.id, false);
     }
 };
+
+// Add helper function to check sync state
+const isConfigSyncing = (configId) => syncingStates.value.get(configId) || false;
 
 const errors = ref({});
 const showError = ref(false);
@@ -347,7 +353,7 @@ watch(activeTab, (newTab) => {
           <EmailConfigForm
             :configs="emailConfigs"
             :departments="departments"
-            :isSyncing="isSyncing"
+            :syncingStates="syncingStates"
             @addConfig="addEmailConfig"
             @removeConfig="index => emailConfigs.splice(index, 1)"
             @syncEmails="syncEmails"

@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use Webklex\PHPIMAP\Client;
-use Webklex\PHPIMAP\ClientManager;
+use Ddeboer\Imap\Server;
+use Ddeboer\Imap\Connection;
 use App\Models\EmailSetting;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
@@ -12,112 +12,60 @@ class ImapConnectionManager
 {
     private static $connections = [];
     private static $cachePrefix = 'imap_connection_';
-    private static $cacheDuration = 3600; // 1 hour
     
-    public static function getConnection(EmailSetting $emailSetting): ?Client
-    {
-        $key = self::$cachePrefix . $emailSetting->id;
-        
-        // Check if we have a cached connection state
-        $hasConnection = Cache::has($key);
-        
-        Log::channel('email-sync')->info('Checking connection', [
-            'email' => $emailSetting->email,
-            'exists' => $hasConnection
-        ]);
-
-        // If we have a connection in memory, try it first
-        if (isset(self::$connections[$key])) {
-            try {
-                self::$connections[$key]->getFolders();
-                Cache::put($key, true, self::$cacheDuration);
-                
-                Log::channel('email-sync')->info('Reused memory connection', [
-                    'email' => $emailSetting->email
-                ]);
-                return self::$connections[$key];
-            } catch (\Exception $e) {
-                Log::channel('email-sync')->warning('Memory connection died', [
-                    'email' => $emailSetting->email,
-                    'error' => $e->getMessage()
-                ]);
-                unset(self::$connections[$key]);
-                Cache::forget($key);
-            }
-        }
-        
-        // If we have a cached state but no memory connection, try to recreate
-        if ($hasConnection) {
-            try {
-                $client = self::createConnection($emailSetting);
-                if ($client) {
-                    Log::channel('email-sync')->info('Recreated cached connection', [
-                        'email' => $emailSetting->email
-                    ]);
-                    return $client;
-                }
-            } catch (\Exception $e) {
-                Log::channel('email-sync')->warning('Failed to recreate cached connection', [
-                    'email' => $emailSetting->email,
-                    'error' => $e->getMessage()
-                ]);
-                Cache::forget($key);
-            }
-        }
-
-        // Create new connection if nothing else worked
-        return self::createConnection($emailSetting);
-    }
-
-    public static function createConnection(EmailSetting $emailSetting): ?Client
+    public static function getConnection(EmailSetting $emailSetting): ?Connection
     {
         $key = self::$cachePrefix . $emailSetting->id;
         
         try {
-            $config = [
+            if (isset(self::$connections[$key])) {
+                return self::$connections[$key];
+            }
+
+            // Parse IMAP settings
+            $imapSettings = is_string($emailSetting->imap_settings) 
+                ? json_decode($emailSetting->imap_settings, true) 
+                : $emailSetting->imap_settings;
+
+            // Log full connection details for debugging
+            Log::channel('email-sync')->info('Connection details:', [
                 'host' => $emailSetting->host,
                 'port' => $emailSetting->port,
-                'encryption' => $emailSetting->imap_settings['encryption'] ?? 'ssl',
-                'validate_cert' => $emailSetting->imap_settings['validate_cert'] ?? true,
-                'username' => $emailSetting->username,
-                'password' => $emailSetting->password,
-                'protocol' => 'imap',
-                'authentication' => 'plain',
-                'options' => [
-                    'debug' => false,
-                    'auth_type' => 'plain',
-                    'ssl' => [
-                        'verify_peer' => false,
-                        'verify_peer_name' => false
-                    ],
-                    'timeout' => -1,
-                    'stream_options' => [
-                        'tcp' => [
-                            'keepalive' => true,
-                            'timeout' => -1
-                        ]
-                    ]
-                ]
-            ];
+                'encryption' => $imapSettings['encryption'] ?? 'ssl',
+                'validate_cert' => $imapSettings['validate_cert'] ?? false,
+                'username' => $emailSetting->username
+            ]);
 
-            $cm = new ClientManager();
-            $client = $cm->make($config);
-            $client->connect();
+            // Create server connection with proper flags
+            $server = new Server(
+                $emailSetting->host,
+                $emailSetting->port,
+                '/ssl/novalidate-cert' // Add proper flags for SSL connection
+            );
+
+            // Authenticate with credentials
+            $connection = $server->authenticate($emailSetting->username, $emailSetting->password);
             
-            self::$connections[$key] = $client;
-            Cache::put($key, true, self::$cacheDuration);
+            // Store connection if successful
+            self::$connections[$key] = $connection;
             
-            Log::channel('email-sync')->info('Created new connection', [
-                'email' => $emailSetting->email
-            ]);
-            
-            return $client;
-        } catch (\Exception $e) {
-            Log::channel('email-sync')->error('Failed to create connection', [
+            Log::channel('email-sync')->info('IMAP connection successful', [
                 'email' => $emailSetting->email,
-                'error' => $e->getMessage()
+                'mailboxes' => array_map(
+                    fn($mailbox) => $mailbox->getName(),
+                    iterator_to_array($connection->getMailboxes())
+                )
             ]);
-            Cache::forget($key);
+
+            return $connection;
+
+        } catch (\Exception $e) {
+            Log::channel('email-sync')->error('IMAP connection failed:', [
+                'error' => $e->getMessage(),
+                'email' => $emailSetting->email,
+                'host' => $emailSetting->host,
+                'port' => $emailSetting->port
+            ]);
             return null;
         }
     }
@@ -125,19 +73,13 @@ class ImapConnectionManager
     public static function clearConnection(EmailSetting $emailSetting): void
     {
         $key = self::$cachePrefix . $emailSetting->id;
-        unset(self::$connections[$key]);
-        Cache::forget($key);
-    }
-
-    public static function initializeAllConnections(): void
-    {
-        EmailSetting::where('active', true)->each(function($setting) {
-            $connection = self::getConnection($setting);
-            if (!$connection) {
-                Log::channel('email-sync')->error('Failed to initialize connection', [
-                    'email' => $setting->email
-                ]);
+        if (isset(self::$connections[$key])) {
+            try {
+                self::$connections[$key]->close();
+            } catch (\Exception $e) {
+                // Ignore close errors
             }
-        });
+            unset(self::$connections[$key]);
+        }
     }
 }

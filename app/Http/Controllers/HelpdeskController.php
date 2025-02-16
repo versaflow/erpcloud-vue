@@ -182,21 +182,12 @@ class HelpdeskController extends Controller
         // Get authenticated user
         $authUser = Auth::user();
         
-        Log::info('User accessing support:', [
-            'id' => $authUser->id,
-            'is_admin' => $authUser->is_admin,
-            'is_agent' => $authUser->is_agent
-        ]);
 
         // Get departments with debug logging
         $departments = Department::select('id', 'name', 'email')
             ->where('is_active', true)
             ->get();
         
-        Log::info('Departments found:', [
-            'count' => $departments->count(),
-            'departments' => $departments->toArray()
-        ]);
 
         // Get agents with debug logging
         $agents = User::where(function($query) {
@@ -248,24 +239,23 @@ class HelpdeskController extends Controller
                 'messages' => $conversation->messages->map(fn($message) => [
                     'id' => $message->id,
                     'type' => $message->type,
-                    'direction' => $message->direction,
+                    
                     'content' => $message->content,
-                    'from_name' => $message->from_name,
-                    'from_email' => $message->from_email,
-                    'to_email' => $message->to_email,
-                    'cc' => $message->cc,
-                    'subject' => $message->subject,
-                    'quoted_text' => $message->quoted_text,
-                    'signature' => $message->signature,
-                    'tags' => $message->tags,
+          
                     'created_at' => $message->created_at->format('Y-m-d H:i:s'),
+                    'conversation_id' => $message->conversation_id,
+                    'email_message_id' => $message->email_message_id,
+                    'support_user_id' => $message->support_user_id,
+                    'user_id' => $message->user_id,
+                    'status' => $message->status,
+                    'read_at' => $message->read_at,
                     'has_attachments' => $message->attachments()->exists(),
                     'attachments' => $message->attachments->map(fn($attachment) => [
                         'id' => $attachment->id,
-                        'name' => $attachment->name,
+                        'name' => $attachment->filename,
                         'size' => $this->formatFileSize($attachment->size),
-                        'url' => $attachment->url,
-                        'type' => $attachment->type
+                        'url' => $attachment->path,
+                        'type' => $attachment->mime_type
                     ])
                 ]),
                 'unread_messages_count' => $conversation->messages_count,
@@ -314,6 +304,7 @@ class HelpdeskController extends Controller
         $bytes /= pow(1024, $pow);
         return round($bytes, 1) . ' ' . $units[$pow];
     }
+    
 
     public function getSupportUsers()
     {

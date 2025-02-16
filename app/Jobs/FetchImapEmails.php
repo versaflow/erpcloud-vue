@@ -2,10 +2,10 @@
 
 namespace App\Jobs;
 
-use Webklex\PHPIMAP\ClientManager;
-use Webklex\PHPIMAP\Exceptions\ConnectionFailedException;
+use App\Services\ImapConnectionManager;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB; // Add this import
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use App\Models\EmailSetting;
 use App\Models\SupportUser;
 use App\Models\SpamContact;
@@ -16,307 +16,67 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
-use App\Enums\ConversationStatus;  // Add this import
-use HTMLPurifier;
-use HTMLPurifier_Config;
-use EmailReplyParser\Parser\EmailParser;  // Update this import
+use App\Enums\ConversationStatus;
+use DateTimeImmutable;
+use Ddeboer\Imap\Message\EmailAddress;
 
 class FetchImapEmails implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     protected $emailSetting;
-    public $timeout = 0; // Never timeout for queue
-    public $tries = 1;   // Only try once
+    public $timeout = 120;
+    public $tries = 1;
 
     public function __construct(EmailSetting $emailSetting)
     {
         $this->emailSetting = $emailSetting;
-        $this->timeout = 120; // Set 2 minute timeout
     }
 
     public function handle()
     {
         try {
-            // Change all Log:: calls to use email-sync channel
             Log::channel('email-sync')->info('Starting IMAP fetch for: ' . $this->emailSetting->email);
-            
-            // Remove PHP execution time limit completely
-            set_time_limit(0);
-            ini_set('max_execution_time', 0);
 
-            $config = [
-                'host'          => $this->emailSetting->host,
-                'port'          => $this->emailSetting->port,
-                'encryption'    => $this->emailSetting->imap_settings['encryption'] ?? 'ssl',
-                'validate_cert' => $this->emailSetting->imap_settings['validate_cert'] ?? true,
-                'username'      => $this->emailSetting->username,
-                'password'      => $this->emailSetting->password,
-                'protocol'      => 'imap',
-                'authentication' => 'plain', // Add this line
-                'options' => [
-                    'debug' => true, // Add debug mode
-                    'auth_type' => 'plain',
-                    'ssl' => [
-                        'verify_peer' => false,
-                        'verify_peer_name' => false
-                    ],
-                    'timeout' => 0,      // Never timeout IMAP connection
-                    'stream_options' => [ // Add stream options
-                        'tcp' => [
-                            'keepalive' => true,
-                            'timeout' => -1
-                        ]
-                    ]
-                ]
-            ];
-
-            // Log EVERYTHING for debugging
-            Log::channel('email-sync')->info('Full IMAP connection details:', [
-                'raw_config' => $config,
-                'email_setting' => $this->emailSetting->toArray(),
-                'connection_string' => sprintf(
-                    '{%s:%d/imap/%s}INBOX',
-                    $config['host'],
-                    $config['port'],
-                    $config['encryption']
-                ),
-                // 'debug_info' => [
-                //     'database_record' => DB::table('email_settings')->where('id', $this->emailSetting->id)->first(),
-                //     'raw_imap_settings' => $this->emailSetting->imap_settings
-                // ]
-            ]);
-
-            $cm = new ClientManager();
-            $client = $cm->make($config);
-
-            Log::channel('email-sync')->info('Client configured, attempting connection...');
-            
-            // Try connecting
-            $client->connect();
-            
-            Log::channel('email-sync')->info('Connection successful!');
-
-            // Get the INBOX folder
-            $folder = $client->getFolder('INBOX');
-
-            // Get current time before starting fetch
-            $currentTime = now();
-            
-           
-            $lastSync = $this->emailSetting->last_sync_at;
-            $searchDate = $lastSync ? $lastSync : now();
-
-            Log::channel('email-sync')->info('Search from ', [
-                'from' => $searchDate->format('Y-m-d H:i:s'),
-            ]);
-
-            // Get all emails since last sync
-            $messages = $folder->query()
-                ->since($searchDate)
-                ->leaveUnread()
-                ->get();
-
-
-                Log::channel('email-sync')->info('Found messages:', [
-                    'count' => $messages->count()
-                ]);
-            foreach ($messages as $message) {
-
-
-                $messageDate = \Carbon\Carbon::parse($message->date);
-                if ($lastSync && $messageDate->lte($lastSync)) {
-                    Log::channel('email-sync')->info('Skipping older message:', [
-                        'message_date' => $messageDate,
-                        'last_sync' => $lastSync
-                    ]);
-                    continue;
-                }
-
-                $this->processEmail($message);
+            $connection = ImapConnectionManager::getConnection($this->emailSetting);
+            if (!$connection) {
+                throw new \Exception('Could not establish IMAP connection');
             }
 
-            // Update last sync time based on results
-            if ($messages->count() === 0) {
-                // No emails found - use current time
-                $this->emailSetting->update(['last_sync_at' => $currentTime]);
-                Log::channel('email-sync')->info('No messages found, using current time as last_sync');
-            } else {
-                // Get last message's date
-                $lastMessage = $messages->last();
-                Log::channel('email-sync')->info('Last message properties:', [
-                    'subject' => $lastMessage->subject,
-                    'from' => $lastMessage->from,
-                    'date' => $lastMessage->date,
-                    'uid' => $lastMessage->uid,
-                    'message_id' => $lastMessage->messageId
-                ]);
-                $lastMessageDate = $lastMessage->date ?? $currentTime;
-                
-                $this->emailSetting->update(['last_sync_at' => $lastMessageDate]);
-                Log::channel('email-sync')->info('Using last message date as last_sync:', [
-                    'last_message_date' => $lastMessageDate
-                ]);
-            }
+            $mailbox = $connection->getMailbox('INBOX');
+            $lastSync = $this->emailSetting->last_sync_at ?? now();
 
-            Log::channel('email-sync')->info('Completed IMAP fetch');
-
-        } catch (\Exception $e) {
-            if (strpos($e->getMessage(), 'Maximum execution time') !== false) {
-                Log::channel('email-sync')->warning('Sync timeout - will resume on next run', [
-                    'email' => $this->emailSetting->email,
-                    'last_sync' => $searchDate->format('Y-m-d H:i:s')
-                ]);
-                // Update last_sync to the start time of failed batch
-                $this->emailSetting->update(['last_sync_at' => $searchDate]);
-            }
-            Log::channel('email-sync')->error('Fetch failed:', [
-                'error' => $e->getMessage(),
-                // 'trace' => $e->getTraceAsString()
-            ]);
-            throw $e;
-        }
-    }
-
-    protected function findParentConversation($subject, $fromEmail): ?Conversation
-    {
-        // Remove 'Re:', 'Fwd:', etc and trim
-        $cleanSubject = preg_replace('/^(Re|Fwd|Fw):\s*/i', '', $subject);
-        $cleanSubject = trim($cleanSubject);
-        
-        // Find existing conversation with same subject (ignoring Re:) using basic SQL
-        return Conversation::where(function($query) use ($cleanSubject, $fromEmail) {
-            $query->where(function($q) use ($cleanSubject) {
-                // Check for exact match after removing Re:/Fwd:
-                $q->where('subject', 'LIKE', $cleanSubject)
-                  // Also check if this is the original email that others are replying to
-                  ->orWhere('subject', 'LIKE', 'Re: ' . $cleanSubject)
-                  ->orWhere('subject', 'LIKE', 'Fwd: ' . $cleanSubject)
-                  ->orWhere('subject', 'LIKE', 'Fw: ' . $cleanSubject);
-            })->where('from_email', $fromEmail);
-        })
-        ->latest()
-        ->first();
-    }
-
-    protected function processEmail($message)
-    {
-        try {
-            DB::beginTransaction();
-
-            $messageId = $message->uid ?? $message->messageId ?? md5($message->subject . $message->from . $message->date);
-            
-            // Check for existing message using both uid and message_id
-            if (Message::where('email_message_id', $messageId)
-                ->orWhere('email_message_id', $message->messageId)
-                ->exists()) {
-                Log::channel('email-sync')->info('Skip duplicate message', [
-                    'message_id' => $messageId,
-                    'subject' => $message->subject
-                ]);
-                DB::commit();
-                return;
-            }
-
-            // Clean sender info - force string conversion for from address
-            $fromEmail = $this->cleanEmailAddress((string)(is_array($message->from) ? $message->from[0]->mail : $message->from));
-            $fromName = is_array($message->from) ? ($message->from[0]->personal ?? null) : null;
-            $fromName = $fromName ?: explode('@', $fromEmail)[0];
-
-            // Create/update support user with force insert
-            $supportUser = SupportUser::updateOrCreate(
-                ['email' => $fromEmail],
-                [
-                    'name' => $fromName,
-                    'last_seen_at' => now()
-                ]
+            // Use search criteria for better performance
+            $searchDate = new DateTimeImmutable($lastSync->format('Y-m-d H:i:s'));
+            $messages = $mailbox->getMessages(
+                new \Ddeboer\Imap\Search\Date\Since($searchDate)
             );
 
-            // Ensure we have a valid support user ID
-            if (!$supportUser || !$supportUser->id) {
-                throw new \Exception('Failed to create/get support user');
+            $messageCount = count($messages);
+            Log::channel('email-sync')->info("Found {$messageCount} messages since {$searchDate->format('Y-m-d H:i:s')}");
+
+            $processed = 0;
+            $lastEmailDate = null;
+            foreach ($messages as $message) {
+
+                $lastEmailDate = $message->getDate();
+                if ($this->processEmail($message)) {
+                    $processed++;
+                }
             }
 
-            // Get cleaned content
-            $content = $this->getMessageContent($message);
-            if (empty($content)) {
-                $content = '<p>No content available</p>';
-            }
+            Log::channel('email-sync')->info("Processed {$processed} new messages out of {$messageCount} total");
 
-            // Determine if this is a reply
-            $isReply = preg_match('/^(Re|Fwd|Fw):/i', (string)$message->subject);
-            $parentConversation = null;
-
-            if ($isReply) {
-                $parentConversation = $this->findParentConversation($message->subject, $fromEmail);
-            }
-
-            if ($parentConversation) {
-                // Create reply message with explicit values
-                $newMessage = new Message([
-                    'content' => $content,
-                    'email_message_id' => $messageId,
-                    'type' => 'reply',
-                    'support_user_id' => $supportUser->id,
-                    'conversation_id' => $parentConversation->id
-                ]);
-                
-                $newMessage->save();
-
-                // Update conversation
-                $parentConversation->touch();
-                $parentConversation->status = ConversationStatus::OPEN;
-                $parentConversation->save();
-
-                Log::channel('email-sync')->info('Saved reply to conversation', [
-                    'conversation_id' => $parentConversation->id,
-                    'message_id' => $newMessage->id
-                ]);
-            } else {
-                // Create new conversation with explicit values
-                $conversation = new Conversation([
-                    'email_message_id' => $messageId,
-                    'subject' => (string)$message->subject ?: 'No Subject',
-                    'from_email' => $fromEmail,
-                    'to_email' => $this->emailSetting->email,
-                    'status' => SpamContact::isSpam($fromEmail) ? ConversationStatus::SPAM : ConversationStatus::NEW,
-                    'department_id' => $this->emailSetting->department_id,
-                    'support_user_id' => $supportUser->id
-                ]);
-                
-                $conversation->save();
-
-                Log::channel('email-sync')->info('Created new conversation', [
-                    'subject' => $conversation->subject,
-                    'content' => $content,
-                ]);
-                
-                // Create initial message
-                $newMessage = new Message([
-                    'content' => $content,
-                    'email_message_id' => $messageId,
-                    'type' => 'initial',
-                    'support_user_id' => $supportUser->id,
-                    'conversation_id' => $conversation->id
-                ]);
-                
-                $newMessage->save();
-
-                Log::channel('email-sync')->info('Saved new conversation', [
-                    'conversation_id' => $conversation->id,
-                    'message_id' => $newMessage->id
+            // Update last sync time using the message date directly
+            if ($lastEmailDate) {
+                $this->emailSetting->update([
+                    'last_sync_at' => $lastEmailDate->format('Y-m-d H:i:s')
                 ]);
             }
 
-            // Process attachments if any
-            if ($newMessage) {
-                $this->processAttachments($message, $newMessage);
-            }
-
-            DB::commit();
+            Log::channel('email-sync')->info('Email fetch completed successfully');
         } catch (\Exception $e) {
-            DB::rollBack();
-            Log::channel('email-sync')->error('Failed to process email', [
+            Log::channel('email-sync')->error('Fetch failed:', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -324,193 +84,174 @@ class FetchImapEmails implements ShouldQueue
         }
     }
 
-    protected function createNewConversation($message, $messageId, $supportUser, $content, $fromEmail)
+    protected function processEmail($message): bool
     {
-        $status = SpamContact::isSpam($fromEmail) ? ConversationStatus::SPAM : ConversationStatus::NEW;
-        
-        $conversation = Conversation::create([
-            'email_message_id' => $messageId,
-            'subject' => $message->subject ?? 'No Subject',
-            'from_email' => $fromEmail,
-            'to_email' => $this->emailSetting->email,
-            'status' => $status,
-            'department_id' => $this->emailSetting->department_id,
-            'support_user_id' => $supportUser->id
-        ]);
-
-        $conversation->messages()->create([
-            'content' => $content,
-            'email_message_id' => $messageId,
-            'type' => 'initial',
-            'support_user_id' => $supportUser->id
-        ]);
-
-        Log::channel('email-sync')->info('Created new conversation', [
-            'conversation_id' => $conversation->id,
-            'status' => $status
-        ]);
-
-        return $conversation;
-    }
-
-    /**
-     * Clean email address by removing display name
-     */
-    protected function cleanEmailAddress($email): string 
-    {
-        // Remove any display name part (anything before <email>)
-        if (preg_match('/<(.+?)>/', $email, $matches)) {
-            return $matches[1];
-        }
-        
-        // If no angle brackets, clean up any quotes or extra spaces
-        return trim(str_replace(['"', "'"], '', $email));
-    }
-
-    protected function getMessageContent($message): string 
-    {
-        // Get raw content first
-        $rawContent = '';
-        
-        if (!empty($message->textHtml)) {
-            $rawContent = is_array($message->textHtml) ? $message->textHtml[0] : $message->textHtml;
-        } elseif (!empty($message->textPlain)) {
-            $rawContent = is_array($message->textPlain) ? $message->textPlain[0] : $message->textPlain;
-        } elseif (method_exists($message, 'getRawBody')) {
-            $rawContent = $message->getRawBody();
-        }
-
-        if (empty($rawContent)) {
-            return '<p>No content available</p>';
-        }
-
-    
-
         try {
-            // Create parser instance with correct method
-            $parser = new EmailParser();
-            $email = $parser->parse($rawContent);
-            
-            // Get the most recent fragment (the new content)
-            $fragments = $email->getFragments();
-            $visibleContent = '';
-            
-            if (!empty($fragments)) {
-                // Get first non-quoted fragment
-                foreach ($fragments as $fragment) {
-                    if (!$fragment->isQuoted() && !$fragment->isSignature()) {
-                        $visibleContent = $fragment->getContent();
-                        break;
-                    }
-                }
+            DB::beginTransaction();
+
+            // Only get basic headers first for duplicate check
+            $messageId = $message->getId() ?? $message->getNumber();
+
+            // Skip if already processed
+            if (Message::where('email_message_id', $messageId)->exists()) {
+                Log::channel('email-sync')->info("Skipping already processed message: {$messageId}");
+                DB::commit();
+                return false;
             }
 
-            // If no valid fragment found, use original content
-            if (empty($visibleContent)) {
-                $visibleContent = $rawContent;
-            }
+            // Now get full message details
+            $from = $message->getFrom();
+            $fromEmail = $from instanceof EmailAddress ? $from->getAddress() : $from[0]->getAddress();
+            $fromName = $from instanceof EmailAddress ? $from->getName() : $from[0]->getName();
+            $fromName = $fromName ?: explode('@', $fromEmail)[0];
 
-            // Convert to HTML if needed
-            if (strpos($rawContent, '<html') !== false || strpos($rawContent, '<body') !== false) {
-                $content = $this->sanitizeHtml($visibleContent);
+            // Create/update support user
+            $supportUser = SupportUser::updateOrCreate(
+                ['email' => $fromEmail],
+                ['name' => $fromName, 'last_seen_at' => now()]
+            );
+
+            $subject = $message->getSubject() ?? 'No Subject';
+            $content = $this->getMessageContent($message);
+
+            // Handle as reply or new conversation
+            if (preg_match('/^(Re|Fwd|Fw):/i', $subject)) {
+                $this->handleReply($message, $supportUser, $content, $fromEmail);
             } else {
-                $content = nl2br(htmlspecialchars($visibleContent));
+                $this->createNewConversation($message, $supportUser, $content, $fromEmail);
             }
 
-
-            return $content;
+            DB::commit();
+            return true;
         } catch (\Exception $e) {
-            // Log error but don't fail
-            Log::channel('email-sync')->warning('Email parsing failed:', [
+            DB::rollBack();
+            Log::channel('email-sync')->error('Failed to process message:', [
+                'message_id' => $messageId ?? 'unknown',
                 'error' => $e->getMessage()
             ]);
-            
-            // Fall back to original content
-            return $this->sanitizeHtml($rawContent);
+            return false;
         }
     }
 
-    protected function sanitizeHtml($html): string
+    protected function getMessageContent($message): string
     {
-        // Process with HTML Purifier
-        if (class_exists(HTMLPurifier::class)) {
-            $config = HTMLPurifier_Config::createDefault();
-            
-            // Configure allowed elements and attributes
-            $config->set('HTML.Allowed', 'p,br,b,strong,i,em,u,ul,ol,li,span,div,blockquote,pre,code,hr,h1,h2,h3,h4,h5,h6,table,thead,tbody,tr,td,th,a[href|title],img[src|alt|title|width|height|class]');
-            
-            // Allow some CSS properties
-            $config->set('CSS.AllowedProperties', 'font,font-size,font-weight,font-style,font-family,text-decoration,padding-left,color,background-color,text-align');
-            
-            // Set other configuration options
-            $config->set('HTML.SafeIframe', true);
-            $config->set('URI.SafeIframeRegexp', '%^(https?:)?//(www\.youtube(?:-nocookie)?\.com/embed/|player\.vimeo\.com/video/)%');
-            $config->set('URI.AllowedSchemes', [
-                'http' => true,
-                'https' => true,
-                'mailto' => true,
-                'ftp' => true,
-                'tel' => true,
-                'data' => true,
-            ]);
-            
-            // Allow data URIs for images (base64 encoded images)
-            $config->set('URI.AllowedSchemes', array('http' => true, 'https' => true, 'data' => true));
-            $config->set('URI.Base', 'http://www.example.com');
-            $config->set('URI.MakeAbsolute', true);
-            
-            $purifier = new HTMLPurifier($config);
-            return $purifier->purify($html);
+        // Get HTML content
+        if ($message->getBodyHtml()) {
+            return $message->getBodyHtml();
         }
 
-        // Fallback cleaning if HTMLPurifier isn't available
-        $html = strip_tags($html, '<p><br><b><strong><i><em><u><ul><ol><li><span><div><blockquote><pre><code><hr><h1><h2><h3><h4><h5><h6><table><thead><tbody><tr><td><th><a><img>');
-        
-        // Preserve line breaks and spacing
-        $html = str_replace(["\n", "\r\n"], '', $html);
-        $html = preg_replace('/\s+/', ' ', $html);
-        
-        return $html;
+        // Get text content
+        if ($message->getBodyText()) {
+            return '<pre style="white-space: pre-wrap;">' .
+                htmlspecialchars($message->getBodyText()) .
+                '</pre>';
+        }
+
+        return '<p>No content available</p>';
     }
 
-    protected function processAttachments($emailMessage, Message $dbMessage)
+    protected function handleReply($message, $supportUser, $content, $fromEmail)
     {
-        if (!$emailMessage->hasAttachments()) {
+        $subject = $message->getSubject();
+        $cleanSubject = preg_replace('/^(Re|Fwd|Fw):\s*/i', '', $subject);
+
+        $conversation = Conversation::where(function ($query) use ($cleanSubject, $fromEmail) {
+            $query->where(function ($q) use ($cleanSubject) {
+                $q->where('subject', 'LIKE', $cleanSubject)
+                    ->orWhere('subject', 'LIKE', 'Re: ' . $cleanSubject)
+                    ->orWhere('subject', 'LIKE', 'Fwd: ' . $cleanSubject);
+            })->where('from_email', $fromEmail);
+        })->latest()->first();
+
+        if (!$conversation) {
+            $conversation = $this->createNewConversation($message, $supportUser, $content, $fromEmail);
             return;
         }
 
-        $basePath = storage_path('app/attachments/' . date('Y/m'));
-        if (!file_exists($basePath)) {
-            mkdir($basePath, 0755, true);
-        }
+        // Create reply message
+        $newMessage = Message::create([
+            'content' => $content,
+            'email_message_id' => $message->getId(),
+            'type' => 'reply',
+            'support_user_id' => $supportUser->id,
+            'conversation_id' => $conversation->id
+        ]);
 
-        foreach ($emailMessage->getAttachments() as $attachment) {
+        // Process attachments for the new message
+        $this->processAttachments($message, $newMessage);
+
+        // Update conversation status
+        $conversation->update([
+            'status' => ConversationStatus::OPEN,
+            'updated_at' => now()
+        ]);
+    }
+
+    protected function createNewConversation($message, $supportUser, $content, $fromEmail)
+    {
+        $conversation = Conversation::create([
+            'subject' => $message->getSubject() ?: 'No Subject',
+            'from_email' => $fromEmail,
+            'to_email' => $this->emailSetting->email,
+            'status' => SpamContact::isSpam($fromEmail) ? ConversationStatus::SPAM : ConversationStatus::NEW,
+            'department_id' => $this->emailSetting->department_id,
+            'support_user_id' => $supportUser->id,
+            'email_message_id' => $message->getId()
+        ]);
+
+        $newMessage = Message::create([
+            'content' => $content,
+            'email_message_id' => $message->getId(),
+            'type' => 'initial',
+            'support_user_id' => $supportUser->id,
+            'conversation_id' => $conversation->id
+        ]);
+
+        // Process attachments for the new message
+        $this->processAttachments($message, $newMessage);
+
+        return $conversation;
+    }
+    protected function processAttachments($emailMessage, $message)
+    {
+        $attachments = $emailMessage->getAttachments();
+        Log::channel('email-sync')->info('Processing attachments:', [
+            'message_id' => $message->id,
+            'attachment_count' => count($attachments)
+        ]);
+
+        foreach ($attachments as $attachment) {
             try {
-                $filename = $attachment->getName() ?? 'unnamed_file';
+                $filename = $attachment->getFilename();
                 $content = $attachment->getContent();
-                $storedPath = $basePath . '/' . uniqid() . '_' . preg_replace('/[^a-zA-Z0-9\.]/', '_', $filename);
+                $mimeType = $attachment->getType() ?? 'application/octet-stream';
+                $size = strlen($content);
 
-                if (file_put_contents($storedPath, $content)) {
-                    $dbMessage->attachments()->create([
+
+                $path = 'attachments/' . date('Y/m');
+                $uniquePath = $path . '/' . uniqid() . '_' . $filename;
+                
+                $storedPath = Storage::put($uniquePath, $content);
+
+              
+                if ($storedPath) {
+                    $attachmentRecord = $message->attachments()->create([
                         'filename' => $filename,
-                        'path' => str_replace(storage_path('app/'), '', $storedPath),
-                        'mime_type' => $attachment->getMimeType() ?? 'application/octet-stream',
-                        'size' => strlen($content)
+                        'path' => $uniquePath,
+                        'mime_type' => $mimeType,
+                        'size' => $size
                     ]);
 
-                    Log::channel('email-sync')->info('Attachment saved successfully', [
-                        'filename' => $filename,
-                        'message_id' => $dbMessage->id
-                    ]);
+                
                 }
             } catch (\Exception $e) {
                 Log::channel('email-sync')->error('Failed to save attachment:', [
                     'error' => $e->getMessage(),
-                    'filename' => $filename ?? 'unknown'
+                    'stack_trace' => $e->getTraceAsString(),
+                    'filename' => $filename ?? 'unknown',
+                    'message_id' => $message->id
                 ]);
             }
         }
     }
-
- 
 }
