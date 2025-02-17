@@ -287,6 +287,7 @@ class EmailService
                 'user_id' => Auth::id(),
                 'content' => $messageData['content'],
                 'type' => 'email',
+                'read_at' => now(),
                 'email_message_id' => $messageId,
                 'status' => MessageStatus::SENT,
                 'cc' => $messageData['cc'],

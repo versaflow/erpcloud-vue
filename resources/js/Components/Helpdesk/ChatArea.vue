@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, nextTick, onBeforeUnmount } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import Icon from '@/Components/Icons/Index.vue';
 import MessageBox from './MessageBox.vue';
@@ -74,36 +74,14 @@ watch(() => props.conversation, (newConversation) => {
     }
 }, { immediate: true });
 
-// Add debugging watch for conversation prop
-watch(() => props.conversation, (newConv) => {
-    console.log('Conversation Data:', {
-        id: newConv.id,
-        created_at: newConv.created_at,
-        raw_date: new Date(newConv.created_at),
-        parsed: formatDate(newConv.created_at)
-    });
-}, { immediate: true });
 
 // Add ref for messages container
 const messagesContainer = ref(null);
 
-// Add function to scroll to first unread message or end
+// Modify scrollToFirstUnreadOrEnd function
 const scrollToFirstUnreadOrEnd = () => {
     if (!messagesContainer.value) return;
-
-    // Find first unread message
-    const firstUnreadMessage = props.conversation.messages.find(m => !m.read_at);
-    
-    if (firstUnreadMessage) {
-        // Find the message element
-        const unreadElement = document.getElementById(`message-${firstUnreadMessage.id}`);
-        if (unreadElement) {
-            unreadElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-    } else {
-        // If no unread messages, scroll to bottom
-        messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
-    }
+    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
 };
 
 // Add watch effect to mark messages as read when conversation changes
@@ -121,7 +99,17 @@ watch(() => props.conversation, async (newConversation) => {
 }, { immediate: true });
 
 const isSending = ref(false); // Add this ref
+const isSendingEmail = ref(false);
 
+// Add local messages state
+const localMessages = ref([]);
+
+// Sync with prop changes
+watch(() => props.conversation.messages, (newMessages) => {
+    localMessages.value = [...newMessages];
+}, { immediate: true });
+
+// Update sendMessage function
 async function sendMessage() {
     if (!message.value.trim() || isSending.value) return;
     
@@ -136,14 +124,76 @@ async function sendMessage() {
             }
         );
 
+        const newMessage = {
+            ...response.data.data,
+            agent: {
+                name: page.props.auth.user.name,
+                email: page.props.auth.user.email
+            }
+        };
+        
+        // Update local messages instead of mutating prop
+        localMessages.value = [...localMessages.value, newMessage];
+        
+        nextTick(() => {
+            if (messagesContainer.value) {
+                messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+            }
+        });
+
         message.value = '';
-        emit('send-message', response.data.data);
         showToast('Message sent successfully', 'success');
     } catch (error) {
         console.error('Failed to send message:', error);
         showToast('Failed to send message', 'error');
     } finally {
         isSending.value = false;
+    }
+}
+
+// Update handleEmailSend function
+async function handleEmailSend(emailData) {
+    if (isSendingEmail.value) return;
+    
+    isSendingEmail.value = true;
+    try {
+        const response = await axios.post(
+            `/helpdesk/conversations/${props.conversation.id}/messages`,
+            {
+                content: emailData.content,
+                type: 'email',
+                subject: emailData.subject || `Re: ${props.conversation.subject}`,
+                cc: emailData.cc,
+                bcc: emailData.bcc,
+                attachments: emailData.attachments
+            }
+        );
+
+        // Add the new message directly to the conversation messages array
+        const newMessage = {
+            ...response.data.data,
+            agent: {
+                name: page.props.auth.user.name,
+                email: page.props.auth.user.email
+            }
+        };
+        
+        // Update local messages instead of mutating prop
+        localMessages.value = [...localMessages.value, newMessage];
+        
+        nextTick(() => {
+            if (messagesContainer.value) {
+                messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+            }
+        });
+
+        showEmailReply.value = false;
+        showToast('Email sent successfully', 'success');
+    } catch (error) {
+        console.error('Failed to send email:', error.response?.data || error);
+        showToast('Failed to send email', 'error');
+    } finally {
+        isSendingEmail.value = false;
     }
 }
 
@@ -297,10 +347,6 @@ const confirmUnarchive = async () => {
     }
 };
 
-const showNotification = (message, type = 'success') => {
-    // You can implement this based on your notification system
-    console.log(`${type}: ${message}`);
-};
 
 function handleEscalate() {
     emit('escalate', props.conversation.id);
@@ -308,39 +354,6 @@ function handleEscalate() {
 
 function toggleReplyMode() {
     showEmailReply.value = !showEmailReply.value;
-}
-
-async function handleEmailSend(emailData) {
-    console.log('Email data before sending:', emailData); // Add this debug line
-    
-    if (isSending.value) return;
-    
-    isSending.value = true;
-    try {
-        const response = await axios.post(
-            `/helpdesk/conversations/${props.conversation.id}/messages`,
-            {
-                content: emailData.content,
-                type: 'email',
-                subject: emailData.subject || `Re: ${props.conversation.subject}`,
-                cc: emailData.cc,
-                bcc: emailData.bcc,
-                attachments: emailData.attachments
-            }
-        );
-
-        // Add response logging
-        console.log('Email send response:', response.data); // Add this debug line
-
-        emit('send-message', response.data.data);
-        showEmailReply.value = false;
-        showToast('Email sent successfully', 'success');
-    } catch (error) {
-        console.error('Failed to send email:', error.response?.data || error);
-        showToast('Failed to send email', 'error');
-    } finally {
-        isSending.value = false;
-    }
 }
 
 // Add computed properties for conversation details
@@ -396,6 +409,53 @@ const formatDate = (dateString) => {
 
 // Add environment check
 const isDevelopment = process.env.NODE_ENV === 'development';
+
+// Add polling interval in milliseconds (e.g., 5000 = 5 seconds)
+const POLLING_INTERVAL = 5000;
+const pollingTimeout = ref(null);
+
+// Add loading state
+const isLoading = ref(false);
+
+// Function to fetch latest conversation data
+const fetchLatestConversation = async () => {
+    try {
+        const response = await axios.get(`/helpdesk/conversations/${props.conversation.id}`);
+        if (response.data) {
+            // Update local messages if there are changes
+            const newMessages = response.data.messages;
+            if (JSON.stringify(localMessages.value) !== JSON.stringify(newMessages)) {
+                localMessages.value = newMessages;
+                nextTick(() => {
+                    scrollToFirstUnreadOrEnd();
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Error fetching conversation:', error);
+    }
+};
+
+// Start polling when component is mounted
+onMounted(async () => {
+    // Initial fetch
+    isLoading.value = true;
+    await fetchLatestConversation();
+    isLoading.value = false;
+
+    // Start polling
+    const startPolling = () => {
+        pollingTimeout.value = setInterval(fetchLatestConversation, POLLING_INTERVAL);
+    };
+    startPolling();
+});
+
+// Clean up polling when component is unmounted
+onBeforeUnmount(() => {
+    if (pollingTimeout.value) {
+        clearInterval(pollingTimeout.value);
+    }
+});
 
 </script>
 
@@ -570,8 +630,11 @@ const isDevelopment = process.env.NODE_ENV === 'development';
 
         <!-- Update messages area with ref -->
         <div class="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900" ref="messagesContainer">
-            <div class="h-[calc(100% - 20px)]"> <!-- Reduced height by 20px -->
-                <MessageBox v-for="message in conversation.messages"
+            <div v-if="isLoading" class="flex justify-center items-center h-full">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+            </div>
+            <div v-else class="h-[calc(100% - 20px)]"> <!-- Reduced height by 20px -->
+                <MessageBox v-for="message in localMessages"
                            :key="message.id"
                            :id="`message-${message.id}`"
                            :message="message"
@@ -635,7 +698,8 @@ const isDevelopment = process.env.NODE_ENV === 'development';
                     :recipient="conversation.user.email"
                     :subject="'Re: ' + conversation.subject"
                     :signatures="signatures"
-                    :disabled="isSending"
+                    :disabled="isSendingEmail"
+                    :loading="isSendingEmail"
                     @send="handleEmailSend" />
             </div>
         </div>

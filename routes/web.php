@@ -124,7 +124,8 @@ Route::middleware(['auth', 'admin'])->group(function () {
 }); // This is the correct closing brace
 
 Route::middleware(['auth'])->group(function () {
-    // ...existing routes...
+    Route::get('/helpdesk/conversations/{conversation}', [HelpdeskController::class, 'getConversation'])
+        ->name('helpdesk.conversations.get');
     
     Route::post('/api/upload', [FileUploadController::class, 'store'])
         ->name('api.upload');

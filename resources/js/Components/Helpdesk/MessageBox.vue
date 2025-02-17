@@ -95,37 +95,49 @@ const splitContent = computed(() => {
         quoted: parts.length > 1 ? props.message.content.slice(parts[0].length) : ''
     };
 });
+
+const isAgentMessage = computed(() => {
+    return props.message.user_id !== null;
+});
+
+const messageUser = computed(() => {
+    if (isAgentMessage.value) {
+        return props.message.agent || { name: 'Agent', email: '' };
+    }
+    return props.conversation.user;
+});
 </script>
 
 <template>
     <div :class="[
-        'mb-4 p-4 rounded-lg relative',
+        'mb-4 p-4 rounded-lg relative w-full', // Changed to w-full
         'bg-white',
-        { 'border-l-4 border-indigo-500': isUnread }
+        { 'border-l-4 border-indigo-500': isUnread && !isAgentMessage }
     ]">
-        <!-- Add unread indicator if needed -->
-        <div v-if="isUnread" 
-             class="absolute -left-6 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-indigo-500">
-        </div>
-
         <!-- Message Header -->
-        <div class="flex justify-between items-start mb-2 border-b border-gray-200 pb-2">
-            <div class="flex items-center gap-2">
-                <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
-                    {{ initials }}
-                </div>
-                <div>
-                    <div class="font-medium">{{ conversation.user.name }}</div>
-                    <div class="text-sm text-gray-500">{{ conversation.user.email }}</div>
-                </div>
-            </div>
+        <div class="flex  justify-between items-start mb-2 border-b border-gray-200 pb-2"
+          :class="{ 'flex-row-reverse': !isAgentMessage }"
+        >
+            <!-- Date (always on left) -->
             <div class="text-sm text-gray-500">
                 {{ formattedDate }}
             </div>
+
+            <!-- User/Agent info (right-aligned for agent messages) -->
+            <div class="flex items-center gap-2" 
+                 :class="{ 'flex-row-reverse': isAgentMessage }">
+                <div class="w-8 h-8 rounded-full flex items-center justify-center"
+                     :class="isAgentMessage ? 'bg-indigo-100' : 'bg-gray-100'">
+                    {{ initials }}
+                </div>
+                <div :class="{ 'text-right': isAgentMessage }">
+                    <div class="font-medium">{{ messageUser.name }}</div>
+                    <div class="text-sm text-gray-500">{{ messageUser.email }}</div>
+                </div>
+            </div>
         </div>
 
-
-        <!-- Message Content -->
+        <!-- Rest of the template remains unchanged -->
         <div class="mt-4">
             <div v-if="hasQuotedText" class="prose prose-sm max-w-none email-content">
                 <!-- Main content -->

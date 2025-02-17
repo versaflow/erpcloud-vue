@@ -262,6 +262,10 @@ class HelpdeskController extends Controller
                     'email_message_id' => $message->email_message_id,
                     'support_user_id' => $message->support_user_id,
                     'user_id' => $message->user_id,
+                    'agent' => $message->user_id ? [
+                        'name' => User::find($message->user_id)?->name ?? 'N/A',
+                        'email' => User::find($message->user_id)?->email ?? 'N/A',
+                    ] : null,
                     'status' => $message->status,
                     'read_at' => $message->read_at,
                     'has_attachments' => $message->attachments()->exists(),
@@ -720,5 +724,43 @@ class HelpdeskController extends Controller
                 'error' => 'Failed to store message: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    public function getConversation(Conversation $conversation)
+    {
+        // Check if user has access to this conversation
+        if (!Auth::user()->is_admin && $conversation->agent_id !== Auth::id()) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        return response()->json([
+            'id' => $conversation->id,
+            'status' => $conversation->status,
+            'subject' => $conversation->subject,
+            'messages' => $conversation->messages->map(fn($message) => [
+                'id' => $message->id,
+                'type' => $message->type,
+                'content' => $message->content,
+                'created_at' => $message->created_at->format('Y-m-d H:i:s'),
+                'conversation_id' => $message->conversation_id,
+                'email_message_id' => $message->email_message_id,
+                'support_user_id' => $message->support_user_id,
+                'user_id' => $message->user_id,
+                'agent' => $message->user_id ? [
+                    'name' => User::find($message->user_id)?->name ?? 'N/A',
+                    'email' => User::find($message->user_id)?->email ?? 'N/A',
+                ] : null,
+                'status' => $message->status,
+                'read_at' => $message->read_at,
+                'has_attachments' => $message->attachments()->exists(),
+                'attachments' => $message->attachments->map(fn($attachment) => [
+                    'id' => $attachment->id,
+                    'name' => $attachment->filename,
+                    'size' => $this->formatFileSize($attachment->size),
+                    'url' => $attachment->path,
+                    'type' => $attachment->mime_type
+                ])
+            ])
+        ]);
     }
 }

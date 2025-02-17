@@ -18,6 +18,10 @@ const props = defineProps({
     subject: {
         type: String,
         default: ''
+    },
+    loading: {
+        type: Boolean,
+        default: false
     }
 });
 
@@ -252,10 +256,12 @@ onMounted(() => {
 
             <!-- Send button -->
             <button @click="handleSend"
+                    :disabled="disabled || loading"
                     class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700
-                           inline-flex items-center gap-2">
-                <Icon name="send" size="4" />
-                Send
+                           inline-flex items-center gap-2 disabled:opacity-50">
+                <Icon v-if="loading" name="loading" class="animate-spin" size="4" />
+                <Icon v-else name="send" size="4" />
+                {{ loading ? 'Sending...' : 'Send' }}
             </button>
         </div>
     </div>
