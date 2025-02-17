@@ -94,3 +94,21 @@ sudo systemctl restart apache2  # or
 mkdir -p storage/logs
 touch storage/logs/email-sync.log
 chmod 777 storage/logs/email-sync.log
+
+
+mkdir -p /Users/brinnixs/Documents/erpcloud-vue/storage/locks
+chmod 775 storage/locks
+
+npm install ag-grid-community ag-grid-vue3
+npm install @ag-grid-community/client-side-row-model @ag-grid-community/core
+
+composer require ezyang/htmlpurifier
+npm install dompurify
+
+npm install @ag-grid-enterprise/advanced-filter
+npm install @headlessui/vue
+
+
+php artisan imap:initialize
+
+composer require phpmailer/phpmailer

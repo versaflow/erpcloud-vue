@@ -63,13 +63,15 @@ class CreateHelpdeskTables extends Migration
         });
 
         // 4. Create message_attachments table
+      
+
         Schema::create('message_attachments', function (Blueprint $table) {
             $table->id();
             $table->foreignId('message_id')->constrained()->cascadeOnDelete();
             $table->string('filename');
             $table->string('path');
-            $table->string('mime_type');
-            $table->integer('size');
+            $table->string('mime_type')->nullable();
+            $table->bigInteger('size')->nullable();
             $table->timestamps();
         });
     }

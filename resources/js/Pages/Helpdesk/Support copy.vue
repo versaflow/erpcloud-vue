@@ -155,38 +155,22 @@ const onCellClicked = async params => {
     }
 
     if (params.column.colDef.field === 'subject') {
-        // Find the full conversation data from our local store
-        const conversation = allConversations.value.find(c => c.id === params.data.id);
-        if (!conversation) {
-            showToast('Conversation data not found', 'error');
-            return;
-        }
-
-        // Ensure all required properties are present
-        selectedConversation.value = {
-            ...conversation,
-            messages: conversation.messages || [],
-            user: conversation.user || {},
-            department_id: conversation.department_id,
-            agent_id: conversation.agent_id,
-            status: conversation.status,
-            subject: conversation.subject,
-            created_at: conversation.created_at,
-            updated_at: conversation.updated_at,
-            is_priority: conversation.is_priority || false,
-            unread_messages_count: conversation.unread_messages_count || 0
-        };
-
+        selectedConversation.value = params.data;
         showChatArea.value = true;
 
         try {
-            // Just mark as read without reloading
-            await axios.post(`/helpdesk/conversations/${params.data.id}/read`);
+            // Mark messages as read
+            const response = await axios.post(`/helpdesk/conversations/${params.data.id}/read`);
             
-            // Update unread count in local store
-            const index = allConversations.value.findIndex(c => c.id === params.data.id);
+            // Update the conversation in our local store
+            const updatedConversation = response.data.conversation;
+            const index = allConversations.value.findIndex(c => c.id === updatedConversation.id);
             if (index !== -1) {
-                allConversations.value[index].unread_messages_count = 0;
+                allConversations.value[index] = {
+                    ...allConversations.value[index],
+                    messages: updatedConversation.messages,
+                    unread_messages_count: 0
+                };
             }
 
             // Update the grid
@@ -205,7 +189,7 @@ const onCellClicked = async params => {
                 const index = allConversations.value.findIndex(c => c.id === params.data.id);
                 if (index !== -1) {
                     allConversations.value[index].status = 'open';
-                                    }
+                }
                 params.api.refreshCells({ force: true });
             } catch (error) {
                 console.error('Failed to update conversation status:', error);
@@ -281,7 +265,7 @@ const columnDefs = [
         flex: 2,
         cellRenderer: params => `
             <div class="flex items-center gap-2">
-                <span class="w-2 h-2 mr-2 inline-block flex-shrink-0 ${params.data.unread_messages_count ? 'rounded-full bg-red-500' : ''}" aria-hidden="true"></span>
+                <span class="w-2 h-2 mr-2 inline-block ${params.data.unread_messages_count ? 'rounded-full bg-red-500' : ''}" aria-hidden="true"></span>
                 <span class="font-medium text-gray-900 truncate">${params.value}</span>
                 ${params.data.is_priority ? '<span class="text-red-500">⚡</span>' : ''}
             </div>
@@ -325,9 +309,8 @@ const columnDefs = [
         },
         cellRenderer: params => {
             const dept = props.departments.find(d => d.id === params.value);
-            return `<div class="truncate whitespace-nowrap">${dept ? dept.name : 'Unassigned'}</div>`;
-        },
-        cellClass: 'single-line-cell'
+            return dept ? dept.name : 'Unassigned';
+        }
     },
     { 
         headerName: 'Agent',
@@ -350,9 +333,8 @@ const columnDefs = [
         },
         cellRenderer: params => {
             const agent = props.agents.find(a => a.id === params.value);
-            return `<div class="truncate whitespace-nowrap">${agent ? agent.name : 'Unassigned'}</div>`;
-        },
-        cellClass: 'single-line-cell'
+            return agent ? agent.name : 'Unassigned';
+        }
     },
     { 
         headerName: 'Last Updated',
@@ -547,7 +529,7 @@ const refreshConversations = async () => {
 // Add periodic refresh (every 30 seconds)
 onMounted(() => {
     allConversations.value = props.conversations;
-    // // Set up refresh interval
+    // Set up refresh interval
     const refreshInterval = setInterval(async () => {
         try {
             const response = await axios.get(route('helpdesk.support'));
@@ -1026,19 +1008,5 @@ select {
 :deep(.non-editable-cell) {
     background-color: #f9fafb;
     cursor: not-allowed;
-}
-
-.nowrap-cell {
-    white-space: nowrap;
-}
-
-/* Add styles for single line cells */
-:deep(.single-line-cell) {
-    @apply overflow-hidden;
-}
-
-:deep(.single-line-cell > div) {
-    @apply truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-full;
-    text-overflow: ellipsis;
 }
 </style>

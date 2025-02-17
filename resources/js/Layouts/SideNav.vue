@@ -181,12 +181,7 @@ const helpdeskItems = computed(() => {
             route: 'helpdesk.support',
             path: '/helpdesk/support'
         },
-        {
-            name: 'Custormers',
-            icon: 'fas fa-users',
-            route: 'helpdesk.users',
-            path: '/helpdesk/users'
-        }
+     
     ];
 
     if (user.value.is_admin) {
@@ -195,6 +190,12 @@ const helpdeskItems = computed(() => {
             icon: 'fas fa-cog',
             route: 'helpdesk.settings',
             path: '/helpdesk/settings'
+        }, 
+        {
+            name: 'Custormers',
+            icon: 'fas fa-users',
+            route: 'helpdesk.users',
+            path: '/helpdesk/users'
         });
     }
 

@@ -27,6 +27,7 @@
                                     <tr>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Agent Count</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                                     </tr>
                                 </thead>
@@ -34,6 +35,14 @@
                                     <tr v-for="department in departments" :key="department.id">
                                         <td class="px-6 py-4 whitespace-nowrap">{{ department.name }}</td>
                                         <td class="px-6 py-4 whitespace-nowrap">{{ department.users_count }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span :class="[
+                                                'px-2 py-1 text-xs rounded-full',
+                                                department.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                            ]">
+                                                {{ department.is_active ? 'Active' : 'Inactive' }}
+                                            </span>
+                                        </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                             <button 
                                                 @click="openModal(department)"
@@ -73,6 +82,18 @@
                                         />
                                         <InputError :message="form.errors.name" class="mt-2" />
                                     </div>
+
+                                    <div class="mt-4">
+                                        <label class="flex items-center">
+                                            <input 
+                                                type="checkbox" 
+                                                v-model="form.is_active"
+                                                class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                                            >
+                                            <span class="ml-2 text-sm text-gray-600">Active</span>
+                                        </label>
+                                        <InputError :message="form.errors.is_active" class="mt-2" />
+                                    </div>
                                     
                                     <div class="mt-6 flex justify-end gap-4">
                                         <SecondaryButton @click="closeModal">Cancel</SecondaryButton>
@@ -107,13 +128,15 @@ const showModal = ref(false);
 const editingDepartment = ref(null);
 
 const form = useForm({
-    name: ''
+    name: '',
+    is_active: true
 });
 
 const openModal = (department = null) => {
     editingDepartment.value = department;
     if (department) {
         form.name = department.name;
+        form.is_active = department.is_active;
     } else {
         form.reset();
     }

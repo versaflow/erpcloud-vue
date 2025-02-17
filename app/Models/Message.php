@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Enums\MessageStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Message extends Model
 {
@@ -16,16 +18,24 @@ class Message extends Model
         'support_user_id',
         'user_id',
         'type',
-        'direction',
-        'from_name',
-        'from_email',
-        'to_email',
+        'status',
+        'read_at',
         'cc',
-        'quoted_text',
-        'signature'
+        'bcc'
     ];
 
     protected $with = ['attachments'];
+
+    protected $casts = [
+        'status' => MessageStatus::class,
+        'read_at' => 'datetime',
+        'cc' => 'string',
+        'bcc' => 'string'
+    ]; 
+
+    protected $attributes = [
+        'status' => MessageStatus::UNREAD
+    ];
 
     public function conversation()
     {
@@ -37,9 +47,10 @@ class Message extends Model
         return $this->belongsTo(SupportUser::class);
     }
 
-    public function attachments()
+    // Add attachments relationship
+    public function attachments(): HasMany
     {
-        return $this->hasMany(MessageAttachment::class);
+        return $this->hasMany(Attachment::class);
     }
 
     public function getHasAttachmentsAttribute()
@@ -68,6 +79,32 @@ class Message extends Model
     public function getSenderTypeAttribute()
     {
         return $this->support_user_id ? 'customer' : 'agent';
+    }
+
+    public function markAsRead()
+    {
+        $this->update([
+            'status' => MessageStatus::READ,
+            'read_at' => now()
+        ]);
+    }
+
+    public function markAsUnread()
+    {
+        $this->update([
+            'status' => MessageStatus::UNREAD,
+            'read_at' => null
+        ]);
+    }
+
+    public function scopeUnread($query)
+    {
+        return $query->where('status', MessageStatus::UNREAD);
+    }
+
+    public function scopeRead($query)
+    {
+        return $query->where('status', MessageStatus::READ);
     }
 
     protected static function boot()

@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class EmailSetting extends Model
@@ -33,6 +35,21 @@ class EmailSetting extends Model
         return $this->belongsTo(Department::class);
     }
 
+    public function smtpSetting(): HasOne
+    {
+        return $this->hasOne(SmtpSetting::class);
+    }
+
+    public function signatures(): HasMany
+    {
+        return $this->hasMany(EmailSignature::class);
+    }
+
+    public function conversations(): HasMany
+    {
+        return $this->hasMany(Conversation::class, 'to_email', 'email');
+    }
+
     public function getConnectionConfigAttribute(): array
     {
         return [
@@ -43,10 +60,5 @@ class EmailSetting extends Model
             'username' => $this->username,
             'password' => $this->password
         ];
-    }
-
-    public function conversations()
-    {
-        return $this->hasMany(Conversation::class, 'to_email', 'email');
     }
 }

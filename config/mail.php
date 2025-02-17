@@ -45,8 +45,10 @@ return [
             'port' => env('MAIL_PORT', 2525),
             'username' => env('MAIL_USERNAME'),
             'password' => env('MAIL_PASSWORD'),
-            'timeout' => null,
-            'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url(env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
+            'timeout' => env('SMTP_TIMEOUT', 60),
+            'local_domain' => env('MAIL_EHLO_DOMAIN', 'localhost'),
+            'verify_peer' => env('MAIL_VERIFY_PEER', true),
+            'max_attempts' => env('MAIL_MAX_ATTEMPTS', 3),
         ],
 
         'ses' => [

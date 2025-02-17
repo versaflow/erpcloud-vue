@@ -10,7 +10,6 @@ enum ConversationStatus: string
     case RESOLVED = 'resolved';
     case CLOSED = 'closed';
     case SPAM = 'spam';
-    case ASSIGNED = 'assigned';
 
     public function label(): string
     {
@@ -20,8 +19,7 @@ enum ConversationStatus: string
             self::PENDING => 'Pending',
             self::RESOLVED => 'Resolved',
             self::CLOSED => 'Closed',
-            self::SPAM => 'Spam',
-            self::ASSIGNED => 'Assigned'
+            self::SPAM => 'Spam'
         };
     }
 
@@ -33,8 +31,7 @@ enum ConversationStatus: string
             self::PENDING => 'orange',
             self::RESOLVED => 'green',
             self::CLOSED => 'gray',
-            self::SPAM => 'red',
-            self::ASSIGNED => 'purple'
+            self::SPAM => 'red'
         };
     }
 
