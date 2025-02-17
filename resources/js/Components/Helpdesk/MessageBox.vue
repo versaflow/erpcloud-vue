@@ -158,7 +158,7 @@ const splitContent = computed(() => {
                    target="_blank"
                    class="inline-flex items-center gap-2 px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded">
                     <icon name="paperclip" class="w-4 h-4" />
-                    {{ attachment.name + "xxxxxx"}}
+                    {{ attachment.name }}
                 </a>
             </div>
         </div>

@@ -4,6 +4,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\HelpdeskController;
+use App\Http\Controllers\FileUploadController;
 use App\Models\Department;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Foundation\Application;
@@ -117,7 +118,17 @@ Route::middleware(['auth', 'admin'])->group(function () {
     
     Route::post('/helpdesk/conversations/{conversation}/read', [HelpdeskController::class, 'markMessagesRead'])
         ->name('helpdesk.conversations.read');
+    
+    Route::post('/helpdesk/conversations/{conversation}/messages', [HelpdeskController::class, 'sendMessage'])
+        ->name('helpdesk.conversations.send-message');
 }); // This is the correct closing brace
+
+Route::middleware(['auth'])->group(function () {
+    // ...existing routes...
+    
+    Route::post('/api/upload', [FileUploadController::class, 'store'])
+        ->name('api.upload');
+});
 
 // Test routes
 Route::get('/test-log', function() {

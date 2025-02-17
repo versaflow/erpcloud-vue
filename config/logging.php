@@ -133,6 +133,13 @@ return [
             'level' => env('LOG_LEVEL', 'debug'),
         ],
 
+        'email-service' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/email-service.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => 14,
+        ],
+
     ],
 
 ];

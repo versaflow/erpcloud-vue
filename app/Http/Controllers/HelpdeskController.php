@@ -13,6 +13,10 @@ use App\Models\SpamContact;
 use App\Enums\ConversationStatus;
 use Illuminate\Http\Request;
 use App\Models\SmtpSetting; // Add this import
+use App\Services\EmailService;
+use App\Models\Message;  // Add this import
+use App\Enums\MessageStatus; // Add this import
+use  App\Services\LoggingService;
 
 use Inertia\Inertia;
 use Illuminate\Support\Facades\DB;
@@ -22,6 +26,15 @@ use Illuminate\Support\Facades\Auth;
 
 class HelpdeskController extends Controller
 {
+    protected $emailService;
+    protected $logger; // Add this property
+
+    public function __construct(EmailService $emailService, LoggingService $logger) // Add logger to constructor
+    {
+        $this->emailService = $emailService;
+        $this->logger = $logger; // Initialize logger
+    }
+
     public function settings()
     {
         return Inertia::render('Helpdesk/Settings', [
@@ -213,9 +226,11 @@ class HelpdeskController extends Controller
             ->get()
             ->map(fn($conversation) => [
                 'id' => $conversation->id,
+
                 'subject' => $conversation->subject,
                 'status' => $conversation->status,
                 'from_email' => $conversation->from_email,
+                'source' => $conversation->source,
                 'to_email' => $conversation->to_email,
                 'created_at' => $conversation->created_at->diffForHumans(),
                 'department' => $conversation->department?->name,
@@ -596,6 +611,113 @@ class HelpdeskController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'error' => 'Failed to mark messages as read'
+            ], 500);
+        }
+    }
+
+    public function sendMessage(Request $request, Conversation $conversation)
+    {
+        $validated = $request->validate([
+            'content' => 'required|string',
+            'type' => 'required|in:text,email',
+            // 'subject' => 'nullable|string|required_if:type,email',
+            'attachments' => 'nullable|array',
+            'attachments.*.path' => 'required|string',
+            'attachments.*.mime_type' => 'required|string',
+            'cc' => 'nullable|email',
+            'bcc' => 'nullable|email',
+            'attachments.*.name' => 'required|string'
+        ]);
+
+        try {
+            $this->logger->logInfoEmail('Sending message', [
+                'type' => $validated['type'],
+                'conversation_id' => $conversation->id
+            ]);
+
+            if ($validated['type'] === 'email') {
+                $message = $this->emailService->sendReply($conversation, $validated);
+            } else {
+                $message = Message::create([
+                    'conversation_id' => $conversation->id,
+                    'user_id' => Auth::id(),
+                    'content' => $validated['content'],
+                    'type' => 'text',
+                    'status' => MessageStatus::SENT
+                ]);
+
+                $this->logger->logInfoEmail('Internal note created', [
+                    'conversation_id' => $conversation->id,
+                    'message_id' => $message->id
+                ]);
+            }
+
+            return response()->json([
+                'message' => 'Message sent successfully',
+                'data' => $message->load('attachments')
+            ]);
+
+        } catch (\Exception $e) {
+            $this->logger->logErrorEmail('Failed to send message', [
+                'error' => $e->getMessage(),
+                'conversation_id' => $conversation->id,
+                'stack_trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'error' => 'Failed to send message: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function storeMessage(Request $request, Conversation $conversation)
+    {
+        $validated = $request->validate([
+            'content' => 'required|string',
+            'type' => 'required|string',
+            'cc' => 'nullable|string',     
+            'bcc' => 'nullable|string',    
+            'attachments' => 'nullable|array',
+            'subject' => 'nullable|string',
+        ]);
+
+        try {
+            if ($validated['type'] === 'email') {
+                $message = $this->emailService->sendReply($conversation, [
+                    'content' => $validated['content'],
+                    'cc' => $validated['cc'],
+                    'bcc' => $validated['bcc'],
+                    'subject' => $validated['subject'] ?? null,
+                    'attachments' => $validated['attachments'] ?? [],
+                ]);
+
+                return response()->json([
+                    'message' => 'Email sent successfully',
+                    'data' => $message->load('attachments')
+                ]);
+            } else {
+                $message = Message::create([
+                    'conversation_id' => $conversation->id,
+                    'user_id' => Auth::id(),
+                    'content' => $validated['content'],
+                    'type' => $validated['type'],
+                    'status' => MessageStatus::SENT
+                ]);
+
+                return response()->json([
+                    'message' => 'Message stored successfully',
+                    'data' => $message->load('attachments')
+                ]);
+            }
+        } catch (\Exception $e) {
+            $this->logger->logErrorEmail('Failed to store message', [
+                'error' => $e->getMessage(),
+                'conversation_id' => $conversation->id,
+                'stack_trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'error' => 'Failed to store message: ' . $e->getMessage()
             ], 500);
         }
     }

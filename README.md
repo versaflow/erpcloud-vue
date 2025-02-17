@@ -110,3 +110,5 @@ npm install @headlessui/vue
 
 
 php artisan imap:initialize
+
+composer require phpmailer/phpmailer

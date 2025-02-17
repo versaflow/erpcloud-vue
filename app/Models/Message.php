@@ -19,14 +19,18 @@ class Message extends Model
         'user_id',
         'type',
         'status',
-        'read_at'
+        'read_at',
+        'cc',
+        'bcc'
     ];
 
     protected $with = ['attachments'];
 
     protected $casts = [
         'status' => MessageStatus::class,
-        'read_at' => 'datetime'
+        'read_at' => 'datetime',
+        'cc' => 'string',
+        'bcc' => 'string'
     ]; 
 
     protected $attributes = [

@@ -120,14 +120,31 @@ watch(() => props.conversation, async (newConversation) => {
     }
 }, { immediate: true });
 
-function sendMessage() {
-    if (!message.value.trim()) return;
-    // Emit message event
-    emit('send-message', {
-        content: message.value,
-        conversationId: props.conversation.id
-    });
-    message.value = '';
+const isSending = ref(false); // Add this ref
+
+async function sendMessage() {
+    if (!message.value.trim() || isSending.value) return;
+    
+    isSending.value = true;
+    try {
+        const response = await axios.post(
+            `/helpdesk/conversations/${props.conversation.id}/messages`,
+            {
+                content: message.value,
+                type: props.conversation.source,
+                conversation_id: props.conversation.id
+            }
+        );
+
+        message.value = '';
+        emit('send-message', response.data.data);
+        showToast('Message sent successfully', 'success');
+    } catch (error) {
+        console.error('Failed to send message:', error);
+        showToast('Failed to send message', 'error');
+    } finally {
+        isSending.value = false;
+    }
 }
 
 function handleAssignment() {
@@ -293,13 +310,37 @@ function toggleReplyMode() {
     showEmailReply.value = !showEmailReply.value;
 }
 
-function handleEmailSend(emailData) {
-    emit('send-message', {
-        ...emailData,
-        conversationId: props.conversation.id,
-        type: 'email'
-    });
-    showEmailReply.value = false;
+async function handleEmailSend(emailData) {
+    console.log('Email data before sending:', emailData); // Add this debug line
+    
+    if (isSending.value) return;
+    
+    isSending.value = true;
+    try {
+        const response = await axios.post(
+            `/helpdesk/conversations/${props.conversation.id}/messages`,
+            {
+                content: emailData.content,
+                type: 'email',
+                subject: emailData.subject || `Re: ${props.conversation.subject}`,
+                cc: emailData.cc,
+                bcc: emailData.bcc,
+                attachments: emailData.attachments
+            }
+        );
+
+        // Add response logging
+        console.log('Email send response:', response.data); // Add this debug line
+
+        emit('send-message', response.data.data);
+        showEmailReply.value = false;
+        showToast('Email sent successfully', 'success');
+    } catch (error) {
+        console.error('Failed to send email:', error.response?.data || error);
+        showToast('Failed to send email', 'error');
+    } finally {
+        isSending.value = false;
+    }
 }
 
 // Add computed properties for conversation details
@@ -571,10 +612,20 @@ const isDevelopment = process.env.NODE_ENV === 'development';
                        class="flex-1 rounded-full border px-6 py-3 bg-white dark:bg-gray-700 
                               dark:border-gray-600 dark:text-gray-200"
                        placeholder="Type your message..."
+                       :disabled="isSending"
                        @keyup.enter="sendMessage" />
                 <button @click="sendMessage"
-                        class="p-3 bg-indigo-600 text-white rounded-full hover:bg-indigo-700">
-                    <Icon name="send" size="5" class="text-white" />
+                        :disabled="isSending"
+                        class="p-3 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <!-- Loading spinner when sending -->
+                    <div v-if="isSending" class="animate-spin">
+                        <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </div>
+                    <!-- Send icon when not sending -->
+                    <Icon v-else name="send" size="5" class="text-white" />
                 </button>
             </div>
 
@@ -582,7 +633,9 @@ const isDevelopment = process.env.NODE_ENV === 'development';
             <div v-else class="px-2"> <!-- Added px-2 -->
                 <EmailEditor
                     :recipient="conversation.user.email"
+                    :subject="'Re: ' + conversation.subject"
                     :signatures="signatures"
+                    :disabled="isSending"
                     @send="handleEmailSend" />
             </div>
         </div>
@@ -657,5 +710,19 @@ input {
 
 input:focus {
     @apply ring-2 ring-indigo-500 ring-offset-2;
+}
+
+/* Add loading button styles */
+.animate-spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
 }
 </style>
