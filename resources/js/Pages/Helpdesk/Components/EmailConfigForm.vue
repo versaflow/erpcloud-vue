@@ -47,8 +47,10 @@
               <label class="block text-sm font-medium text-gray-700">Email Address</label>
               <input v-model="config.email" placeholder="Email Address" 
                 :class="[
-                  'mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
-                  getError(index, 'email') ? 'border-red-500' : ''
+                  'mt-1 w-full rounded-md shadow-sm',
+                  getError(index, 'email') ? 
+                  'border-red-500 focus:border-red-500 focus:ring-red-500' : 
+                  'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500'
                 ]">
               <p v-if="getError(index, 'email')" class="mt-1 text-sm text-red-600">
                 {{ getError(index, 'email') }}
@@ -58,33 +60,68 @@
               <label class="block text-sm font-medium text-gray-700">IMAP Host</label>
               <input v-model="config.host" placeholder="imap.example.com" 
                 :class="[
-                  'mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
-                  getError(index, 'host') ? 'border-red-500' : ''
+                  'mt-1 w-full rounded-md shadow-sm',
+                  getError(index, 'host') ? 
+                  'border-red-500 focus:border-red-500 focus:ring-red-500' : 
+                  'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500'
                 ]">
               <p v-if="getError(index, 'host')" class="mt-1 text-sm text-red-600">
                 {{ getError(index, 'host') }}
               </p>
             </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700">Port</label>
-              <input v-model="config.port" type="number" placeholder="993" 
-                :class="[
-                  'mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
-                  getError(index, 'port') ? 'border-red-500' : ''
-                ]">
-              <p v-if="getError(index, 'port')" class="mt-1 text-sm text-red-600">
-                {{ getError(index, 'port') }}
-              </p>
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700">Port</label>
+                <input v-model="config.port" type="number" placeholder="993" 
+                  :class="[
+                    'mt-1 w-full rounded-md shadow-sm',
+                    getError(index, 'port') ? 
+                    'border-red-500 focus:border-red-500 focus:ring-red-500' : 
+                    'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500'
+                  ]">
+                <p v-if="getError(index, 'port')" class="mt-1 text-sm text-red-600">
+                  {{ getError(index, 'port') }}
+                </p>
+              </div>
+              
+              <div>
+                <label class="block text-sm text-gray-600">Encryption</label>
+                <select v-model="config.imap_settings.encryption" 
+                  class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                  <option value="ssl">SSL</option>
+                  <option value="tls">TLS</option>
+                  <option value="none">None</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700">Username</label>
-              <input v-model="config.username" placeholder="Username" 
-                class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700">Password</label>
-              <input v-model="config.password" type="password" placeholder="Password" 
-                class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700">Username</label>
+                <input v-model="config.username" placeholder="Username" 
+                  :class="[
+                    'mt-1 w-full rounded-md shadow-sm',
+                    getError(index, 'username') ? 
+                    'border-red-500 focus:border-red-500 focus:ring-red-500' : 
+                    'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500'
+                  ]">
+                <p v-if="getError(index, 'username')" class="mt-1 text-sm text-red-600">
+                  {{ getError(index, 'username') }}
+                </p>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700">Password</label>
+                <input v-model="config.password" type="password" placeholder="Password" 
+                  :class="[
+                    'mt-1 w-full rounded-md shadow-sm',
+                    getError(index, 'password') ? 
+                    'border-red-500 focus:border-red-500 focus:ring-red-500' : 
+                    'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500'
+                  ]">
+                <p v-if="getError(index, 'password')" class="mt-1 text-sm text-red-600">
+                  {{ getError(index, 'password') }}
+                </p>
+              </div>
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700">Department</label>
@@ -102,15 +139,6 @@
           <div class="mt-4 space-y-4">
             <h5 class="font-medium text-sm text-gray-700">Advanced Settings</h5>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label class="block text-sm text-gray-600">Encryption</label>
-                <select v-model="config.imap_settings.encryption" 
-                  class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                  <option value="ssl">SSL</option>
-                  <option value="tls">TLS</option>
-                  <option value="none">None</option>
-                </select>
-              </div>
               <div class="flex items-center">
                 <label class="flex items-center">
                   <input type="checkbox" v-model="config.imap_settings.validate_cert" 
@@ -132,10 +160,15 @@
                 placeholder="Support Team"
                 @change="watchImapEmail(config)"
                 :class="[
-                  'mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
-                  getError(index, 'smtp_config.from_name') ? 'border-red-500' : ''
+                  'mt-1 w-full rounded-md shadow-sm',
+                  getSmtpError(index, 'from_name') ? 
+                  'border-red-500 focus:border-red-500 focus:ring-red-500' : 
+                  'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500'
                 ]"
               >
+              <p v-if="getSmtpError(index, 'from_name')" class="mt-1 text-sm text-red-600">
+                {{ getSmtpError(index, 'from_name') }}
+              </p>
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700">Email Address</label>
@@ -144,71 +177,100 @@
                 placeholder="support@example.com"
                 @change="watchImapEmail(config)"
                 :class="[
-                  'mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
-                  getError(index, 'smtp_config.email') ? 'border-red-500' : ''
+                  'mt-1 w-full rounded-md shadow-sm',
+                  getSmtpError(index, 'email') ? 
+                  'border-red-500 focus:border-red-500 focus:ring-red-500' : 
+                  'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500'
                 ]"
               >
+              <p v-if="getSmtpError(index, 'email')" class="mt-1 text-sm text-red-600">
+                {{ getSmtpError(index, 'email') }}
+              </p>
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700">SMTP Host</label>
               <input 
                 v-model="config.smtp_config.host" 
                 placeholder="smtp.example.com"
-                class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                :class="[
+                  'mt-1 w-full rounded-md shadow-sm',
+                  getSmtpError(index, 'host') ? 
+                  'border-red-500 focus:border-red-500 focus:ring-red-500' : 
+                  'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500'
+                ]"
               >
+              <p v-if="getSmtpError(index, 'host')" class="mt-1 text-sm text-red-600">
+                {{ getSmtpError(index, 'host') }}
+              </p>
             </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700">Port</label>
-              <input 
-                v-model="config.smtp_config.port" 
-                type="number" 
-                placeholder="587"
-                class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-              >
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700">Username</label>
-              <input 
-                v-model="config.smtp_config.username"
-                class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-              >
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700">Password</label>
-              <input 
-                v-model="config.smtp_config.password" 
-                type="password"
-                class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-              >
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700">Encryption</label>
-              <select 
-                v-model="config.smtp_config.encryption"
-                class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-              >
-                <option value="tls">TLS</option>
-                <option value="ssl">SSL</option>
-                <option value="none">None</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Add info alert -->
-          <div v-if="!config.smtp_config.email" class="mt-4 p-4 bg-yellow-50 rounded-md">
-            <div class="flex">
-              <div class="flex-shrink-0">
-                <svg class="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                  <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-                </svg>
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700">Port</label>
+                <input 
+                  v-model="config.smtp_config.port" 
+                  type="number" 
+                  placeholder="587"
+                  :class="[
+                    'mt-1 w-full rounded-md shadow-sm',
+                    getSmtpError(index, 'port') ? 
+                    'border-red-500 focus:border-red-500 focus:ring-red-500' : 
+                    'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500'
+                  ]"
+                >
+                <p v-if="getSmtpError(index, 'port')" class="mt-1 text-sm text-red-600">
+                  {{ getSmtpError(index, 'port') }}
+                </p>
               </div>
-              <div class="ml-3">
-                <p class="text-sm text-yellow-700">
-                  The SMTP email address is required and is typically the same as your IMAP email address.
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700">Encryption</label>
+                <select 
+                  v-model="config.smtp_config.encryption"
+                  class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                >
+                  <option value="tls">TLS</option>
+                  <option value="ssl">SSL</option>
+                  <option value="none">None</option>
+                </select>
+              </div>
+            </div>
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700">Username</label>
+                <input 
+                  v-model="config.smtp_config.username"
+                  :class="[
+                    'mt-1 w-full rounded-md shadow-sm',
+                    getSmtpError(index, 'username') ? 
+                    'border-red-500 focus:border-red-500 focus:ring-red-500' : 
+                    'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500'
+                  ]"
+                >
+                <p v-if="getSmtpError(index, 'username')" class="mt-1 text-sm text-red-600">
+                  {{ getSmtpError(index, 'username') }}
+                </p>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700">Password</label>
+                <input 
+                  v-model="config.smtp_config.password" 
+                  type="password"
+                  :class="[
+                    'mt-1 w-full rounded-md shadow-sm',
+                    getSmtpError(index, 'password') ? 
+                    'border-red-500 focus:border-red-500 focus:ring-red-500' : 
+                    'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500'
+                  ]"
+                >
+                <p v-if="getSmtpError(index, 'password')" class="mt-1 text-sm text-red-600">
+                  {{ getSmtpError(index, 'password') }}
                 </p>
               </div>
             </div>
           </div>
+
+       
         </div>
 
         <!-- Signature Settings -->
@@ -321,8 +383,11 @@ const setDefaultSignature = (config, index) => {
 };
 
 const getError = (configIndex, field) => {
-  const errorKey = `imap_configs.${configIndex}.${field}`;
-  return props.errors[errorKey]?.[0];
+  return props.errors[`imap_configs.${configIndex}.${field}`]?.[0];
+};
+
+const getSmtpError = (configIndex, field) => {
+  return props.errors[`imap_configs.${configIndex}.smtp_config.${field}`]?.[0];
 };
 
 // Add watcher for IMAP email changes

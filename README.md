@@ -112,3 +112,5 @@ npm install @headlessui/vue
 php artisan imap:initialize
 
 composer require phpmailer/phpmailer
+
+        // "ddeboer/imap": "^1.19",

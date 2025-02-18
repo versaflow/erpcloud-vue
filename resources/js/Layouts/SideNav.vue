@@ -54,9 +54,9 @@
               ]"
             >
               <div class="flex items-center min-w-0">
-                <i class="fas fa-headset w-5 h-5 flex-shrink-0"></i>
+                <i class="fas fa-comments w-5 h-5 flex-shrink-0"></i>
                 <span class="ml-3 whitespace-nowrap" :class="{ 'invisible': isCollapsed }">
-                  Helpdesk
+                  Teleclouds Helpdesk 
                 </span>
               </div>
               <i v-if="!isCollapsed" :class="[
