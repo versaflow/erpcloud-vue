@@ -288,6 +288,38 @@ const columnDefs = [
         `
     },
     { 
+        headerName: 'Source',
+        field: 'source',
+        width: 170,
+        cellClass: 'ag-cell-center-items single-line-cell',
+        filter: 'agTextColumnFilter',
+        filterParams: {
+            filterOptions: ['contains', 'notContains', 'equals', 'notEqual'],
+            defaultOption: 'contains'
+        },
+        cellRenderer: params => {
+            const source = params.value || 'N/A';
+            const toEmail = params.data.to_email;
+            
+            if (source.toLowerCase() === 'email' && toEmail) {
+                return `
+                    <div class="flex items-center gap-2 w-full">
+                        <svg class="w-4 h-4 flex-shrink-0 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        <span class="text-sm text-gray-600 truncate">${toEmail}</span>
+                    </div>
+                `;
+            }
+            
+            return `
+                <div class="flex items-center gap-2">
+                    <span class="text-sm text-gray-600">${source}</span>
+                </div>
+            `;
+        }
+    },
+    { 
         headerName: 'Customer',
         field: 'user.name',
         width: 320,
@@ -322,6 +354,18 @@ const columnDefs = [
         valueFormatter: params => {
             const dept = props.departments.find(d => d.id === params.value);
             return dept?.name || 'Unassigned';
+        },
+        // Add filterValueGetter to convert ID to text for filtering
+        filterValueGetter: params => {
+            const dept = props.departments.find(d => d.id === params.data.department_id);
+            return dept?.name || 'Unassigned';
+        },
+        // Change filter type to text
+        filter: 'agTextColumnFilter',
+        // Configure text filter parameters
+        filterParams: {
+            filterOptions: ['contains', 'notContains', 'equals', 'notEqual'],
+            defaultOption: 'contains'
         },
         cellRenderer: params => {
             const dept = props.departments.find(d => d.id === params.value);
@@ -359,6 +403,7 @@ const columnDefs = [
         field: 'updated_at',
         width: 100,
         cellRenderer: params => {
+            console.log(params.value);
             const date = new Date(params.value);
             const now = new Date();
             const diff = now - date;

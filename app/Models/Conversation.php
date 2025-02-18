@@ -51,13 +51,17 @@ class Conversation extends Model
     }
 
     // Remove the attachments() method as it's now linked to Message model
-    
+
     // Add a method to get all attachments through messages
     public function getAllAttachments()
     {
         return Attachment::whereIn('message_id', $this->messages()->pluck('id'));
     }
 
+    public function getLastUpdatedMessageTime()
+    {
+        return $this->messages()->latest('created_at')->value('created_at');
+    }
     // Helper method to assign agent
     public function assignTo(User $agent)
     {

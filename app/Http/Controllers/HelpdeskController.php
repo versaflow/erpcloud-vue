@@ -233,6 +233,7 @@ class HelpdeskController extends Controller
                 'source' => $conversation->source,
                 'to_email' => $conversation->to_email,
                 'created_at' => $conversation->created_at->diffForHumans(),
+                'updated_at' => $conversation->getLastUpdatedMessageTime()?->format('Y-m-d H:i:s'),          
                 'department' => $conversation->department?->name,
                 'department_id' => $conversation->department_id,
                 'agent_id' => $conversation->agent_id,
