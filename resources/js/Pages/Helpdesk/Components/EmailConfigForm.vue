@@ -69,8 +69,8 @@
                 {{ getError(index, 'host') }}
               </p>
             </div>
-            <div class="space-y-4">
-              <div>
+            <div class="flex gap-4">
+              <div class="flex-1">
                 <label class="block text-sm font-medium text-gray-700">Port</label>
                 <input v-model="config.port" type="number" placeholder="993" 
                   :class="[
@@ -84,7 +84,7 @@
                 </p>
               </div>
               
-              <div>
+              <div class="flex-1">
                 <label class="block text-sm text-gray-600">Encryption</label>
                 <select v-model="config.imap_settings.encryption" 
                   class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
@@ -94,8 +94,8 @@
                 </select>
               </div>
             </div>
-            <div class="space-y-4">
-              <div>
+            <div class="flex gap-4">
+              <div class="flex-1">
                 <label class="block text-sm font-medium text-gray-700">Username</label>
                 <input v-model="config.username" placeholder="Username" 
                   :class="[
@@ -109,7 +109,7 @@
                 </p>
               </div>
 
-              <div>
+              <div class="flex-1">
                 <label class="block text-sm font-medium text-gray-700">Password</label>
                 <input v-model="config.password" type="password" placeholder="Password" 
                   :class="[
@@ -203,8 +203,8 @@
                 {{ getSmtpError(index, 'host') }}
               </p>
             </div>
-            <div class="space-y-4">
-              <div>
+            <div class="flex gap-4">
+              <div class="flex-1">
                 <label class="block text-sm font-medium text-gray-700">Port</label>
                 <input 
                   v-model="config.smtp_config.port" 
@@ -222,7 +222,7 @@
                 </p>
               </div>
 
-              <div>
+              <div class="flex-1">
                 <label class="block text-sm font-medium text-gray-700">Encryption</label>
                 <select 
                   v-model="config.smtp_config.encryption"
@@ -234,8 +234,8 @@
                 </select>
               </div>
             </div>
-            <div class="space-y-4">
-              <div>
+            <div class="flex gap-4">
+              <div class="flex-1">
                 <label class="block text-sm font-medium text-gray-700">Username</label>
                 <input 
                   v-model="config.smtp_config.username"
@@ -251,7 +251,7 @@
                 </p>
               </div>
 
-              <div>
+              <div class="flex-1">
                 <label class="block text-sm font-medium text-gray-700">Password</label>
                 <input 
                   v-model="config.smtp_config.password" 
@@ -269,8 +269,6 @@
               </div>
             </div>
           </div>
-
-       
         </div>
 
         <!-- Signature Settings -->
