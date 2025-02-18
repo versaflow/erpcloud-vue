@@ -44,6 +44,7 @@
         "@mdi/js": "^7.4.47",
         "@primevue/themes": "^4.2.5",
         "@vueuse/core": "^12.5.0",
+        "ag-grid-community": "^33.1.0",
         "ag-grid-vue3": "^33.1.0",
         "apexcharts": "4.3.0",
         "axios-mock-adapter": "2.1.0",

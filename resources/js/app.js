@@ -23,7 +23,7 @@ const vuetify = createVuetify({
     }
 })
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+const appName =  'Telecloud Group Helpdesk';
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,

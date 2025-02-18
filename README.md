@@ -114,3 +114,4 @@ php artisan imap:initialize
 composer require phpmailer/phpmailer
 
         // "ddeboer/imap": "^1.19",
+        // "ddeboer/imap": "^1.21",
