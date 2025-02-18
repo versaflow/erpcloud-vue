@@ -54,6 +54,17 @@ const gridApi = ref({
     spam: null
 });
 
+// Add these new refs after existing refs
+const selectedRows = ref([]);
+const showBatchActions = ref(false);
+
+// Add new computed property
+const hasSelectedRows = computed(() => selectedRows.value.length > 0);
+
+// Add new refs for dropdown states
+const showDepartmentMenu = ref(false);
+const showAgentMenu = ref(false);
+
 // Filtered conversations logic
 const filteredConversations = computed(() => {
     const conversations = allConversations.value || [];
@@ -245,6 +256,19 @@ const userPreviousConversations = computed(() => {
 // Enhanced column definitions with better styling
 const columnDefs = [
     {
+        headerName: '',
+        field: 'selection',
+        headerCheckboxSelection: true,
+        checkboxSelection: true,
+        width: 50,
+        pinned: 'left',
+        lockPosition: true,
+        suppressMenu: true,
+        sortable: false,
+        filter: false,
+        resizable: false
+    },
+    {
         headerName: 'Status',
         field: 'status',
         width: 120,
@@ -290,7 +314,7 @@ const columnDefs = [
     { 
         headerName: 'Source',
         field: 'source',
-        width: 170,
+        width: 240,
         cellClass: 'ag-cell-center-items single-line-cell',
         filter: 'agTextColumnFilter',
         filterParams: {
@@ -322,7 +346,7 @@ const columnDefs = [
     { 
         headerName: 'Customer',
         field: 'user.name',
-        width: 320,
+        width: 270,
         cellClass: 'ag-cell-center-items',
         cellRenderer: params => `
             <div class="flex items-center h-full gap-2">
@@ -339,7 +363,7 @@ const columnDefs = [
     { 
         headerName: 'Department',
         field: 'department_id',
-        width: 150,
+        width: 140,
         editable: params => isAdmin.value, // Conditionally set editable
         cellEditor: 'agSelectCellEditor', // Ensure this is set
         cellEditorParams: {
@@ -376,7 +400,7 @@ const columnDefs = [
     { 
         headerName: 'Agent',
         field: 'agent_id',
-        width: 150,
+        width: 140,
         editable: params => isAdmin.value, // Conditionally set editable
         cellEditor: 'agSelectCellEditor', // Ensure this is set
         cellEditorParams: {
@@ -401,7 +425,7 @@ const columnDefs = [
     { 
         headerName: 'Last Updated',
         field: 'updated_at',
-        width: 100,
+        width: 120,
         cellRenderer: params => {
             console.log(params.value);
             const date = new Date(params.value);
@@ -420,7 +444,7 @@ const columnDefs = [
     {
         headerName: 'Actions',
         colId: 'actions', // Add this explicit colId
-        width: 120,
+        width: 100,
         cellClass: 'ag-cell-center-items',
         cellRenderer: params => {
             const isArchivedStatus = ['resolved', 'closed'].includes(params.data.status);
@@ -513,7 +537,21 @@ const statusBackgrounds = {
 const gridOptions = {
     pagination: true,
     paginationPageSize: 20,
-    rowSelection: { type: 'single' },
+    rowSelection: 'multiple', // Change from single to multiple
+    rowMultiSelectWithClick: false, // Disable row selection on click
+    suppressRowClickSelection: true, // Suppress row selection on click
+    checkboxSelection: true, // Enable checkbox selection
+    headerCheckboxSelection: true, // Enable header checkbox selection
+    headerCheckboxSelectionFilteredOnly: true, // Only select filtered rows with header checkbox
+    onTabChanged: () => {
+        selectedRows.value = [];
+        showBatchActions.value = false;
+        gridApi.value[activeTab.value]?.deselectAll();
+    },
+    onSelectionChanged: (event) => {
+        selectedRows.value = event.api.getSelectedRows();
+        showBatchActions.value = selectedRows.value.length > 0;
+    },
     defaultColDef: {
         sortable: true,
         filter: true,
@@ -659,6 +697,101 @@ const tabLabel = computed(() => tab => ({
     unread: tab.unreadCount.value,
     hasUnread: tab.unreadCount.value > 0
 }));
+
+// Add new batch action methods
+const handleBatchArchive = async () => {
+    try {
+        await Promise.all(selectedRows.value.map(conversation => {
+            const endpoint = activeTab.value === 'archived' 
+                ? `/helpdesk/conversations/${conversation.id}/unarchive`
+                : `/helpdesk/conversations/${conversation.id}/archive`;
+            return axios.post(endpoint);
+        }));
+        
+        showToast(`Conversations ${activeTab.value === 'archived' ? 'reopened' : 'solved'} successfully`, 'success');
+        refreshConversations();
+    } catch (error) {
+        showToast(`Failed to ${activeTab.value === 'archived' ? 'reopen' : 'solve'} conversations`, 'error');
+    }
+};
+
+const handleBatchAssignDepartment = async (departmentId) => {
+    try {
+        await Promise.all(selectedRows.value.map(conversation =>
+            axios.post(`/helpdesk/conversations/${conversation.id}/assign-department`, {
+                department_id: departmentId
+            })
+        ));
+        showToast('Department assigned successfully', 'success');
+        refreshConversations();
+        showDepartmentMenu.value = false; 
+    } catch (error) {
+        showToast('Failed to assign department', 'error');
+    }
+};
+
+const handleBatchAssignAgent = async (agentId) => {
+    try {
+        await Promise.all(selectedRows.value.map(conversation =>
+            axios.post(`/helpdesk/conversations/${conversation.id}/assign-agent`, {
+                agent_id: agentId
+            })
+        ));
+        showToast('Agent assigned successfully', 'success');
+        refreshConversations();
+        showAgentMenu.value = false; // Close dropdown after success
+    } catch (error) {
+        showToast('Failed to assign agent', 'error');
+    }
+};
+
+// Add batch message sending functionality
+const handleBatchSendMessage = async (content) => {
+    try {
+        await Promise.all(selectedRows.value.map(conversation =>
+            axios.post(`/helpdesk/conversations/${conversation.id}/messages`, {
+                content,
+                type: 'email'
+            })
+        ));
+        showToast('Messages sent successfully', 'success');
+        refreshConversations();
+    } catch (error) {
+        showToast('Failed to send messages', 'error');
+    }
+};
+
+// Add watcher for activeTab to clear selection
+watch(activeTab, () => {
+    selectedRows.value = [];
+    showBatchActions.value = false;
+    if (gridApi.value[activeTab.value]) {
+        gridApi.value[activeTab.value].deselectAll();
+    }
+});
+
+// Add click outside handler
+const closeAllDropdowns = () => {
+    showDepartmentMenu.value = false;
+    showAgentMenu.value = false;
+};
+
+onMounted(() => {
+    document.addEventListener('click', closeAllDropdowns);
+});
+
+onUnmounted(() => {
+    document.removeEventListener('click', closeAllDropdowns);
+});
+
+// Add computed property for archive button text
+const archiveButtonText = computed(() => {
+    if (activeTab.value === 'archived') {
+        return 'Reopen Selected';
+    }
+    return 'Solve Selected';
+});
+
 </script>
 
 <template>
@@ -670,6 +803,100 @@ const tabLabel = computed(() => tab => ({
             <div class="h-full mx-4 mt-2"> <!-- Added margins -->
                 <!-- Grid View with Tabs -->
                 <div v-if="!showChatArea" class="h-full flex flex-col bg-white rounded-lg shadow-sm"> <!-- Added styling -->
+                    <!-- Add Batch Actions Menu -->
+                    <div v-if="hasSelectedRows" 
+                         class="bg-gray-50 px-6 py-3 border-b border-gray-200 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm text-gray-600">
+                                {{ selectedRows.length }} conversation(s) selected
+                            </span>
+                            <button @click="selectedRows = []" 
+                                    class="text-sm text-gray-500 hover:text-gray-700">
+                                Clear selection
+                            </button>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <!-- Updated Archive/Solve Button -->
+                            <button @click="handleBatchArchive"
+                                    :class="[
+                                        'inline-flex items-center px-3 py-2 border shadow-sm text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500',
+                                        activeTab === 'archived' 
+                                            ? 'border-green-300 text-green-700 bg-green-50 hover:bg-green-100'
+                                            : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
+                                    ]">
+                                {{ archiveButtonText }}
+                            </button>
+
+                            <!-- Department Assignment Dropdown -->
+                            <div class="relative" @click.stop>
+                                <button @click="showDepartmentMenu = !showDepartmentMenu"
+                                        class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                    <span>Assign Department</span>
+                                    <svg class="ml-2 -mr-0.5 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+                                <div v-if="showDepartmentMenu" 
+                                     class="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
+                                    <div class="py-1" role="menu">
+                                        <button v-for="dept in departments" 
+                                                :key="dept.id"
+                                                @click="handleBatchAssignDepartment(dept.id)"
+                                                class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                                                role="menuitem">
+                                            {{ dept.name }}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Agent Assignment Dropdown -->
+                            <div class="relative" @click.stop>
+                                <button @click="showAgentMenu = !showAgentMenu"
+                                        class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                    <span>Assign Agent</span>
+                                    <svg class="ml-2 -mr-0.5 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+                                <div v-if="showAgentMenu" 
+                                     class="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
+                                    <div class="py-1" role="menu">
+                                        <button v-for="agent in agents" 
+                                                :key="agent.id"
+                                                @click="handleBatchAssignAgent(agent.id)"
+                                                class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                                                role="menuitem">
+                                            {{ agent.name }}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Add Batch Message Modal -->
+                    <Modal v-if="showBatchMessageModal" @close="showBatchMessageModal = false">
+                        <div class="p-6">
+                            <h3 class="text-lg font-medium text-gray-900 mb-4">
+                                Send Message to {{ selectedRows.length }} Conversation(s)
+                            </h3>
+                            <textarea v-model="batchMessage"
+                                      class="w-full h-32 p-2 border rounded-md mb-4"
+                                      placeholder="Enter your message..."></textarea>
+                            <div class="flex justify-end gap-4">
+                                <button @click="showBatchMessageModal = false"
+                                        class="btn-secondary">
+                                    Cancel
+                                </button>
+                                <button @click="handleBatchSendMessage(batchMessage)"
+                                        class="btn-primary">
+                                    Send
+                                </button>
+                            </div>
+                        </div>
+                    </Modal>
+
                     <!-- Grid Tabs -->
                     <div class="border-b border-gray-200">
                         <div class="flex space-x-6 px-6">
