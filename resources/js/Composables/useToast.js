@@ -1,24 +1,36 @@
 import { ref } from 'vue';
 
 const toasts = ref([]);
+let id = 0;
 
 export function useToast() {
-    const showToast = (message, type = 'success') => {
-        const id = Date.now();
-        toasts.value.push({
-            id,
-            message,
-            type,
-        });
+    const add = ({ severity = 'info', summary = '', detail = '', life = 3000 }) => {
+        const toast = {
+            id: id++,
+            severity,
+            summary,
+            detail
+        };
+        
+        toasts.value.push(toast);
+        
+        if (life) {
+            setTimeout(() => {
+                removeToast(toast.id);
+            }, life);
+        }
+    };
 
-        // Remove toast after 3 seconds
-        setTimeout(() => {
-            toasts.value = toasts.value.filter(t => t.id !== id);
-        }, 3000);
+    const removeToast = (id) => {
+        const index = toasts.value.findIndex(t => t.id === id);
+        if (index > -1) {
+            toasts.value.splice(index, 1);
+        }
     };
 
     return {
         toasts,
-        showToast,
+        add,
+        removeToast
     };
-}
+};
