@@ -122,7 +122,7 @@ const tabs = [
     },
     { 
         id: 'archived', 
-        label: 'Archived', 
+        label: 'Solved',
         count: computed(() => archivedConversations.value.length),
         unreadCount: computed(() => archivedUnreadCount.value),
         color: 'text-gray-600 bg-gray-50 ring-gray-500/10'

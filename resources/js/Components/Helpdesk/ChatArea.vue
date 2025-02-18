@@ -575,14 +575,20 @@ onBeforeUnmount(() => {
                                 {{ conversation.status === 'spam' ? 'Unmark Spam' : 'Mark Spam' }}
                             </button>
 
-                            <!-- Archive button -->
+                            <!-- Update the solve/re-open button markup -->
                             <button @click="['resolved', 'closed'].includes(conversation.status) ? handleUnarchive() : handleArchive()"
                                     class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md"
                                     :class="['resolved', 'closed'].includes(conversation.status)
                                         ? 'text-green-600 hover:bg-green-50'
                                         : 'text-gray-700 hover:bg-gray-100'">
-                                <Icon :name="['resolved', 'closed'].includes(conversation.status) ? 'inbox' : 'archive'" size="4" />
-                                {{ ['resolved', 'closed'].includes(conversation.status) ? 'Unarchive' : 'Archive' }}
+                                <!-- Fix icon alignment -->
+                                <div class="flex items-center gap-2">
+                                    <Icon 
+                                        :name="['resolved', 'closed'].includes(conversation.status) ? 'refresh' : 'check'" 
+                                        class="w-5 h-5"
+                                    />
+                                    <span>{{ ['resolved', 'closed'].includes(conversation.status) ? 'Re-open' : 'Solved' }}</span>
+                                </div>
                             </button>
                         </div>
                     </div>
@@ -707,13 +713,30 @@ onBeforeUnmount(() => {
         <!-- Add Confirmation Modals -->
         <ConfirmationModal
             :show="showArchiveModal"
-            title="Archive Conversation"
-            message="Are you sure you want to archive this conversation? It will be moved to the archived section."
-            confirm-label="Archive"
-            confirm-style="primary"
+            title="Mark as Solved"
+            message="Are you sure you want to mark this conversation as solved? It will be moved to the solved section."
+            confirm-label="Mark as Solved"
+            confirm-style="success"
             @close="showArchiveModal = false"
             @confirm="confirmArchive"
-        />
+        >
+            <template #footer="{ close }">
+                <div class="flex justify-end gap-3 px-6 py-4 bg-gray-50">
+                    <button
+                        @click="close"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        @click="confirmArchive"
+                        class="px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                    >
+                        Mark as Solved
+                    </button>
+                </div>
+            </template>
+        </ConfirmationModal>
 
         <ConfirmationModal
             :show="showSpamModal"
@@ -739,9 +762,9 @@ onBeforeUnmount(() => {
         <!-- Add unarchive confirmation modal -->
         <ConfirmationModal
             :show="showUnarchiveModal"
-            title="Unarchive Conversation"
-            message="Are you sure you want to unarchive this conversation? It will be moved back to active conversations."
-            confirm-label="Unarchive"
+            title="Re-open Conversation"
+            message="Are you sure you want to re-open this conversation? It will be moved back to active conversations."
+            confirm-label="Re-open"
             confirm-style="primary"
             @close="showUnarchiveModal = false"
             @confirm="confirmUnarchive"
