@@ -302,15 +302,16 @@ const columnDefs = [
     {
         headerName: '',
         field: 'selection',
-        headerCheckboxSelection: true,
-        checkboxSelection: true,
         width: 50,
         pinned: 'left',
         lockPosition: true,
-        suppressMenu: true,
+        suppressHeaderMenuButton: true, // Replaces suppressMenu
         sortable: false,
         filter: false,
-        resizable: false
+        resizable: false,
+        headerCheckboxSelection: true, // Add this line
+        checkboxSelection: true, // Add this line
+        showDisabledCheckboxes: false, // Optional: hide checkboxes for disabled rows
     },
     {
         headerName: 'Status',
@@ -585,12 +586,8 @@ const statusBackgrounds = {
 const gridOptions = {
     pagination: true,
     paginationPageSize: 20,
-    rowSelection: 'multiple', // Change from single to multiple
-    rowMultiSelectWithClick: false, // Disable row selection on click
-    suppressRowClickSelection: true, // Suppress row selection on click
-    checkboxSelection: true, // Enable checkbox selection
-    headerCheckboxSelection: true, // Enable header checkbox selection
-    headerCheckboxSelectionFilteredOnly: true, // Only select filtered rows with header checkbox
+    rowSelection: 'multiple',
+    suppressRowClickSelection: true,
     onTabChanged: () => {
         selectedRows.value = [];
         showBatchActions.value = false;
@@ -611,6 +608,7 @@ const gridOptions = {
             buttons: ['reset', 'apply'],
             closeOnApply: true
         },
+        suppressHeaderMenuButton: true, // Replaces suppressMenu
         suppressKeyboardEvent: params => {
             // Allow enter key for editing
             if (params.event.key === 'Enter' && !params.editing) {
@@ -653,8 +651,14 @@ const gridOptions = {
     enableAdvancedFilter: false,
     suppressMenuHide: true,
     onCellValueChanged,
-    getRowId: params => params.data?.id || Math.random(),
-    getRowNodeId: data => data?.id || Math.random(),
+    getRowId: params => {
+        // Ensure we return a string by using String() or toString()
+        return String(params.data?.id || Math.random());
+    },
+    getRowNodeId: data => {
+        // Also update getRowNodeId for consistency
+        return String(data?.id || Math.random());
+    },
     immutableData: true 
 };
 
