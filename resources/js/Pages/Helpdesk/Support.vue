@@ -1132,13 +1132,13 @@ const archiveButtonText = computed(() => {
                     </div>
 
                     <!-- Update UserInfoPanel to include previous conversations -->
-                    <!-- <div class="w-80 border-l mr-4">
+                    <div class="w-80 border-l mr-4">
                         <UserInfoPanel
                             v-if="selectedConversation"
                             :support-user="selectedConversation.user"
                             :user-conversations="userPreviousConversations"
                         />
-                    </div> -->
+                    </div>
                 </div>
             </div>
         </div>
