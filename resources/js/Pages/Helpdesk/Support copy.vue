@@ -507,7 +507,6 @@ const gridOptions = {
 // Simplified grid ready handler
 const handleGridReady = (params, gridType) => {
     gridApi.value[gridType] = params.api;
-    console.log(`${gridType} Grid Ready`);
 };
 
 // Add reactive watcher for props.conversations

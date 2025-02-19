@@ -47,7 +47,7 @@ class EmailService
 
             // Initialize PHPMailer with better timeout settings
             $mail = new PHPMailer(true);
-            $mail->SMTPDebug = 3; // Enable verbose debug output
+            $mail->SMTPDebug = 0; // Change from 3 to 0 to disable debug output
             $mail->Timeout = config('mail.smtp.timeout', 60);      // Timeout for PHP mail()
             // $mail->SMTPTimeout = config('mail.smtp.timeout', 60);  // Timeout for SMTP connection
             $mail->SMTPKeepAlive = true; // Keep SMTP connection alive
@@ -92,8 +92,6 @@ class EmailService
             $mail->addAddress($conversation->from_email, $conversation->supportUser->name);
             $mail->addReplyTo($smtp->email, $smtp->from_name);
 
-            // Log recipients
-            $recipients = ['to' => [$conversation->from_email]];
 
             // Handle CC with better validation and logging
             $ccRecipients = [];
@@ -280,8 +278,6 @@ class EmailService
     {
         DB::beginTransaction();
         try {
-
-
             $message = Message::create([
                 'conversation_id' => $conversation->id,
                 'user_id' => Auth::id(),
@@ -314,7 +310,12 @@ class EmailService
             ]);
 
             DB::commit();
-            return $message->load('attachments');
+            
+            // Only load attachments if they exist
+            return !empty($messageData['attachments']) 
+                ? $message->load('attachments') 
+                : $message;
+
         } catch (\Exception $e) {
             DB::rollBack();
             $this->logger->logErrorEmail('Failed to create message record', [

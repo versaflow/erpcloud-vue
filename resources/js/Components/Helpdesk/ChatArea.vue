@@ -6,11 +6,21 @@ import MessageBox from './MessageBox.vue';
 import EmailEditor from './EmailEditor.vue';
 import { useForm } from '@inertiajs/vue3';
 import axios from 'axios';
-import { router } from '@inertiajs/vue3';
 import { useToast } from '@/Composables/useToast'; // Create this composable if you haven't already
 import ConfirmationModal from '@/Components/ConfirmationModal.vue';
 
-const { showToast } = useToast();
+const showToast = (message, severity = 'info') => {
+    if (typeof message === 'string') {
+        useToast().showToast({
+            severity: severity,
+            summary: severity === 'error' ? 'Error' : 'Success',
+            detail: message,
+            life: 3000
+        });
+    } else {
+        console.error('Invalid toast message:', message);
+    }
+};
 
 const props = defineProps({
     conversation: {
@@ -42,11 +52,12 @@ const props = defineProps({
     }
 });
 
+const emit = defineEmits(['close',]);
+
 onMounted(() => {
    console.log('Conversation:', props.conversation);
 });
 
-const emit = defineEmits(['assign', 'send-message', 'mark-spam', 'archive', 'escalate', 'transfer']);
 
 const page = usePage();
 const isAdmin = computed(() => page.props.auth.user.is_admin);
@@ -124,6 +135,7 @@ async function sendMessage() {
             }
         );
 
+
         const newMessage = {
             ...response.data.data,
             agent: {
@@ -132,8 +144,9 @@ async function sendMessage() {
             }
         };
         
-        // Update local messages instead of mutating prop
         localMessages.value = [...localMessages.value, newMessage];
+
+        message.value = '';
         
         nextTick(() => {
             if (messagesContainer.value) {
@@ -141,11 +154,10 @@ async function sendMessage() {
             }
         });
 
-        message.value = '';
         showToast('Message sent successfully', 'success');
     } catch (error) {
         console.error('Failed to send message:', error);
-        showToast('Failed to send message', 'error');
+        showToast(error.response?.data?.error || 'Failed to send message', 'error');
     } finally {
         isSending.value = false;
     }
@@ -169,7 +181,6 @@ async function handleEmailSend(emailData) {
             }
         );
 
-        // Add the new message directly to the conversation messages array
         const newMessage = {
             ...response.data.data,
             agent: {
@@ -178,8 +189,8 @@ async function handleEmailSend(emailData) {
             }
         };
         
-        // Update local messages instead of mutating prop
         localMessages.value = [...localMessages.value, newMessage];
+        showEmailReply.value = false;
         
         nextTick(() => {
             if (messagesContainer.value) {
@@ -187,23 +198,16 @@ async function handleEmailSend(emailData) {
             }
         });
 
-        showEmailReply.value = false;
         showToast('Email sent successfully', 'success');
     } catch (error) {
-        console.error('Failed to send email:', error.response?.data || error);
-        showToast('Failed to send email', 'error');
+        console.error('Failed to send email:', error);
+        showToast(error.response?.data?.error || 'Failed to send email', 'error');
     } finally {
         isSendingEmail.value = false;
     }
 }
 
-function handleAssignment() {
-    emit('assign', {
-        departmentId: assignedDepartment.value,
-        agentId: assignedAgent.value,
-        conversationId: props.conversation.id
-    });
-}
+
 
 const isAssigning = ref(false);
 const assignmentError = ref('');
@@ -222,11 +226,7 @@ const handleAssign = async (agentId) => {
         assignmentSuccess.value = 'Successfully assigned conversation';
         showAssignMenu.value = false;
         
-        // Emit the assign event to refresh the parent
-        emit('assign', {
-            conversationId: props.conversation.id,
-            agentId: agentId
-        });
+        
     } catch (error) {
         assignmentError.value = 'Failed to assign conversation';
         console.error('Assignment error:', error);
@@ -242,11 +242,8 @@ const handleAssign = async (agentId) => {
 };
 
 const handleTransfer = (agentId) => {
-    emit('transfer', {
-        conversationId: props.conversation.id,
-        agentId: agentId
-    });
-    showTransferMenu.value = false;
+    alert('Transfer feature coming soon!');
+
 }
 
 const showArchiveModal = ref(false);
@@ -264,7 +261,6 @@ const confirmUnspam = async () => {
     try {
         await axios.post(`/helpdesk/conversations/${props.conversation.id}/unspam`);
         showToast('Conversation removed from spam', 'success');
-        router.visit('/helpdesk/support');
     } catch (error) {
         console.error('Error removing from spam:', error);
         showToast('Failed to remove from spam', 'error');
@@ -280,19 +276,18 @@ const handleSpam = async () => {
 
 const confirmSpam = async () => {
     try {
-        // First, add the sender to spam contacts
         await axios.post('/helpdesk/spam', {
             type: 'email',
             value: props.conversation.user.email,
             reason: 'Marked as spam by agent'
         });
-
-        // Then emit the event to handle UI updates
-        emit('mark-spam', props.conversation.id);
         
-        // Show success notification and redirect
+        await axios.post(`/helpdesk/conversations/${props.conversation.id}/status`, {
+            status: 'spam'
+        });
+
         showToast('Conversation marked as spam', 'success');
-        router.visit('/helpdesk/support');
+        handleBackToGrid();
         
     } catch (error) {
         console.error('Error marking as spam:', error);
@@ -310,13 +305,8 @@ const handleArchive = () => {
 const confirmArchive = async () => {
     try {
         const response = await axios.post(`/helpdesk/conversations/${props.conversation.id}/archive`);
-        
-        // Emit the archive event to update the UI
-        emit('archive', props.conversation.id);
-        
-        // Show success notification and redirect
         showToast('Conversation archived successfully', 'success');
-        router.visit('/helpdesk/support');
+        handleBackToGrid();
         
     } catch (error) {
         console.error('Error archiving conversation:', error);
@@ -336,9 +326,14 @@ const handleUnarchive = () => {
 
 const confirmUnarchive = async () => {
     try {
-        await axios.post(`/helpdesk/conversations/${props.conversation.id}/unarchive`);
+        const response = await axios.post(`/helpdesk/conversations/${props.conversation.id}/unarchive`);
+        
+        // Update local conversation data with returned data
+        if (response.data.conversation) {
+            Object.assign(props.conversation, response.data.conversation);
+        }
+        
         showToast('Conversation unarchived successfully', 'success');
-        router.visit('/helpdesk/support');
     } catch (error) {
         console.error('Error unarchiving conversation:', error);
         showToast('Failed to unarchive conversation', 'error');
@@ -349,7 +344,7 @@ const confirmUnarchive = async () => {
 
 
 function handleEscalate() {
-    emit('escalate', props.conversation.id);
+    alert('Escalate feature coming soon!');
 }
 
 function toggleReplyMode() {
@@ -410,52 +405,9 @@ const formatDate = (dateString) => {
 // Add environment check
 const isDevelopment = process.env.NODE_ENV === 'development';
 
-// Add polling interval in milliseconds (e.g., 5000 = 5 seconds)
-const POLLING_INTERVAL = 5000;
-const pollingTimeout = ref(null);
-
-// Add loading state
-const isLoading = ref(false);
-
-// Function to fetch latest conversation data
-const fetchLatestConversation = async () => {
-    try {
-        const response = await axios.get(`/helpdesk/conversations/${props.conversation.id}`);
-        if (response.data) {
-            // Update local messages if there are changes
-            const newMessages = response.data.messages;
-            if (JSON.stringify(localMessages.value) !== JSON.stringify(newMessages)) {
-                localMessages.value = newMessages;
-                nextTick(() => {
-                    scrollToFirstUnreadOrEnd();
-                });
-            }
-        }
-    } catch (error) {
-        console.error('Error fetching conversation:', error);
-    }
+const handleBackToGrid = () => {
+    emit('close');
 };
-
-// Start polling when component is mounted
-onMounted(async () => {
-    // Initial fetch
-    isLoading.value = true;
-    await fetchLatestConversation();
-    isLoading.value = false;
-
-    // Start polling
-    const startPolling = () => {
-        pollingTimeout.value = setInterval(fetchLatestConversation, POLLING_INTERVAL);
-    };
-    startPolling();
-});
-
-// Clean up polling when component is unmounted
-onBeforeUnmount(() => {
-    if (pollingTimeout.value) {
-        clearInterval(pollingTimeout.value);
-    }
-});
 
 </script>
 

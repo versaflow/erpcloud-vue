@@ -15,6 +15,28 @@ import * as directives from 'vuetify/directives'
 
 import '@mdi/font/css/materialdesignicons.css'
 
+import Echo from 'laravel-echo';
+import Pusher from 'pusher-js';
+
+// Enable Pusher logging
+Pusher.logToConsole = true;
+
+window.Pusher = Pusher;
+window.Echo = new Echo({
+    broadcaster: 'pusher',
+    key: import.meta.env.VITE_PUSHER_APP_KEY,
+    cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER,
+    forceTLS: true,
+    encrypted: true,
+    enabledTransports: ['ws', 'wss'],
+    wsHost: undefined,
+    wsPort: undefined,
+    wssPort: undefined,
+    enableStats: false, // Replace disableStats with enableStats
+    enableLogging: true,
+    debug: true
+});
+
 const vuetify = createVuetify({
     components,
     directives,

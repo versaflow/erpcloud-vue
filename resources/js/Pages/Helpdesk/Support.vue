@@ -87,16 +87,19 @@ const filteredConversations = computed(() => {
     });
 });
 
-// Status-based conversation filters
+// Add this after imports
+const VALID_STATUSES = ['new', 'open', 'pending', 'assigned', 'resolved', 'closed', 'spam'];
+
+// Update the status-based conversation filters with safe checks
 const activeConversations = computed(() => 
     filteredConversations.value.filter(conv => 
-        ['new', 'open', 'pending', 'assigned'].includes(conv.status)
+        conv.status && ['new', 'open', 'pending', 'assigned'].includes(conv.status)
     )
 );
 
 const archivedConversations = computed(() => 
     filteredConversations.value.filter(conv => 
-        ['resolved', 'closed'].includes(conv.status)
+        conv.status && ['resolved', 'closed'].includes(conv.status)
     )
 );
 
@@ -158,78 +161,119 @@ const canAccessConversation = computed(() => (conversation) => {
     );
 });
 
-// Single onCellClicked implementation
+// Add helper function to safely refresh grid cells
+const safeRefreshCells = (gridType) => {
+    // Refresh all grids if no specific type provided
+    if (!gridType) {
+        Object.keys(gridApi.value).forEach(type => {
+            const api = gridApi.value[type];
+            if (api && !api.isDestroyed()) {
+                try {
+                    api.refreshCells({ force: true });
+                } catch (error) {
+                    console.error(`Failed to refresh cells for ${type} grid:`, error);
+                }
+            }
+        });
+        return;
+    }
+
+    
+
+    // Refresh specific grid type
+    const api = gridApi.value[gridType];
+    if (api && !api.isDestroyed()) {
+        try {
+            api.refreshCells({ force: true });
+        } catch (error) {
+            console.error(`Failed to refresh cells for ${gridType} grid:`, error);
+        }
+    }
+};
+
+// Update onCellClicked implementation
 const onCellClicked = async params => {
     if (!canAccessConversation.value(params.data)) {
         showToast('You do not have permission to access this conversation', 'error');
         return;
     }
 
-    if (params.column.colDef.field === 'subject') {
-        // Find the full conversation data from our local store
-        const conversation = allConversations.value.find(c => c.id === params.data.id);
-        if (!conversation) {
-            showToast('Conversation data not found', 'error');
-            return;
-        }
-
-        // Ensure all required properties are present
-        selectedConversation.value = {
-            ...conversation,
-            messages: conversation.messages || [],
-            user: conversation.user || {},
-            department_id: conversation.department_id,
-            agent_id: conversation.agent_id,
-            status: conversation.status,
-            subject: conversation.subject,
-            created_at: conversation.created_at,
-            updated_at: conversation.updated_at,
-            is_priority: conversation.is_priority || false,
-            unread_messages_count: conversation.unread_messages_count || 0
-        };
-
-        showChatArea.value = true;
-
-        try {
-            // Just mark as read without reloading
-            await axios.post(`/helpdesk/conversations/${params.data.id}/read`);
+    try {
+        if (params.column.colDef.field === 'subject') {
+            // Store grid API reference before showing chat
+            const currentApi = gridApi.value[activeTab.value];
             
-            // Update unread count in local store
-            const index = allConversations.value.findIndex(c => c.id === params.data.id);
-            if (index !== -1) {
-                allConversations.value[index].unread_messages_count = 0;
+            // Find the full conversation data
+            const conversation = allConversations.value.find(c => c.id === params.data.id);
+            if (!conversation) {
+                showToast('Conversation data not found', 'error');
+                return;
             }
 
-            // Update the grid
-            params.api.refreshCells({ force: true });
-        } catch (error) {
-            console.error('Failed to mark messages as read:', error);
-        }
+            // Update selected conversation
+            selectedConversation.value = {
+                ...conversation,
+                messages: conversation.messages || [],
+                user: conversation.user || {},
+                department_id: conversation.department_id,
+                agent_id: conversation.agent_id,
+                status: conversation.status,
+                subject: conversation.subject,
+                created_at: conversation.created_at,
+                updated_at: conversation.updated_at,
+                is_priority: conversation.is_priority || false,
+                unread_messages_count: conversation.unread_messages_count || 0
+            };
 
-        // Update status if needed
-        if (params.data.status === 'new') {
+            // Mark as read
             try {
-                await axios.post(`/helpdesk/conversations/${params.data.id}/status`, {
-                    status: 'open'
-                });
-                // Update local state
+                await axios.post(`/helpdesk/conversations/${params.data.id}/read`);
+                
                 const index = allConversations.value.findIndex(c => c.id === params.data.id);
                 if (index !== -1) {
-                    allConversations.value[index].status = 'open';
-                                    }
-                params.api.refreshCells({ force: true });
+                    allConversations.value[index].unread_messages_count = 0;
+                }
+
+                safeRefreshCells(activeTab.value);
             } catch (error) {
-                console.error('Failed to update conversation status:', error);
+                console.error('Failed to mark messages as read:', error);
+            }
+
+            // Update status if needed
+            if (params.data.status === 'new') {
+                try {
+                    await axios.post(`/helpdesk/conversations/${params.data.id}/status`, {
+                        status: 'open'
+                    });
+                    
+                    const index = allConversations.value.findIndex(c => c.id === params.data.id);
+                    if (index !== -1) {
+                        allConversations.value[index].status = 'open';
+                    }
+
+                    safeRefreshCells(activeTab.value);
+                } catch (error) {
+                    console.error('Failed to update conversation status:', error);
+                }
+            }
+
+            // Show chat area after all updates
+            showChatArea.value = true;
+
+        } else if (params.column.colId === 'actions') {
+            const actionButton = params.event.target.closest('button[data-action]');
+            if (actionButton) {
+                const action = actionButton.getAttribute('data-action');
+                handleAction(action, params.data);
             }
         }
-    } else if (params.column.colId === 'actions') {
-        const actionButton = params.event.target.closest('button[data-action]');
-        if (actionButton) {
-            const action = actionButton.getAttribute('data-action');
-            handleAction(action, params.data);
-        }
+    } catch (error) {
+        console.error('Error handling cell click:', error);
+        showToast('An error occurred', 'error');
     }
 };
+
+// Single onCellClicked implementation
 
 // Add user and department info first
 const user = computed(() => page.props.auth.user);
@@ -275,23 +319,28 @@ const columnDefs = [
         cellClass: 'ag-cell-center-items',
         filter: 'agSetColumnFilter',
         filterParams: {
-            values: ['new', 'open', 'pending', 'resolved', 'closed', 'spam']
+            values: VALID_STATUSES
+        },
+        valueGetter: params => {
+            return params.data?.status?.toLowerCase?.() || 'unknown';
         },
         cellRenderer: params => {
+            const status = params.value || 'unknown';
             const statusColors = {
                 'new': 'bg-blue-100 text-blue-800 border-blue-200',
                 'open': 'bg-green-100 text-green-700 border-green-200',
                 'pending': 'bg-yellow-100 text-yellow-800 border-yellow-200',
                 'resolved': 'bg-gray-100 text-gray-800 border-gray-200',
                 'closed': 'bg-gray-100 text-gray-800 border-gray-200',
-                'spam': 'bg-red-100 text-red-700 border-red-200'
+                'spam': 'bg-red-100 text-red-700 border-red-200',
+                'unknown': 'bg-gray-100 text-gray-500 border-gray-200'
             };
             return `
                 <div class="flex items-center h-full">
                     <div class="flex items-center gap-2">
-                        <span class="w-2 h-2 rounded-full ${statusColors[params.value]?.replace('bg-', 'bg-')}"></span>
-                        <span class="px-2.5 py-1 rounded-full text-xs font-medium border ${statusColors[params.value]}">
-                            ${params.value}
+                        <span class="w-2 h-2 rounded-full ${statusColors[status]?.replace('bg-', 'bg-')}"></span>
+                        <span class="px-2.5 py-1 rounded-full text-xs font-medium border ${statusColors[status]}">
+                            ${status}
                         </span>
                     </div>
                 </div>
@@ -427,7 +476,6 @@ const columnDefs = [
         field: 'updated_at',
         width: 120,
         cellRenderer: params => {
-            console.log(params.value);
             const date = new Date(params.value);
             const now = new Date();
             const diff = now - date;
@@ -575,6 +623,10 @@ const gridOptions = {
                 return 'non-editable-cell';
             }
             return '';
+        },
+        valueGetter: params => {
+            const value = params.data?.[params.colDef.field];
+            return value === undefined ? '' : value;
         }
     },
     domLayout: 'normal',
@@ -583,6 +635,7 @@ const gridOptions = {
     rowClass: 'hover:bg-gray-50',
     getRowStyle: params => {
         const style = {};
+        if (!params.data) return style;
         
         // Add background color based on status
         const bgColor = statusBackgrounds[params.data.status];
@@ -597,18 +650,17 @@ const gridOptions = {
 
         return style;
     },
-    enableAdvancedFilter: true,
+    enableAdvancedFilter: false,
     suppressMenuHide: true,
     onCellValueChanged,
-    getRowId: params => params.data.id,
-    getRowNodeId: data => data.id,  // Add this
-    immutableData: true  // Add this
+    getRowId: params => params.data?.id || Math.random(),
+    getRowNodeId: data => data?.id || Math.random(),
+    immutableData: true 
 };
 
 // Simplified grid ready handler
 const handleGridReady = (params, gridType) => {
     gridApi.value[gridType] = params.api;
-    console.log(`${gridType} Grid Ready`);
 };
 
 // Add reactive watcher for props.conversations
@@ -619,66 +671,152 @@ watch(() => props.conversations, (newConversations) => {
 // Add refresh implementation
 const refreshConversations = async () => {
     try {
-        const response = await axios.get(route('helpdesk.support'));
-        allConversations.value = response.data.conversations;
-        gridApi.value[activeTab.value]?.refreshCells({ force: true });
+        const response = await axios.get('/helpdesk/conversations/refresh');
+        allConversations.value = response.data;
+        safeRefreshCells();
     } catch (error) {
         console.error('Failed to refresh conversations:', error);
+        showToast('Failed to refresh conversations', 'error');
     }
 };
 
-// Add periodic refresh (every 30 seconds)
+// Add these new functions after other declarations
+const originalTitle = document.title;
+
+const updateDocumentTitle = (count) => {
+    if (count > 0) {
+        document.title = `(${count}) ${originalTitle}`;
+    } else {
+        document.title = originalTitle;
+    }
+};
+
+// Modify the existing playNotification method
+const playNotification = (count = 1) => {
+    const audio = new Audio('/assets/sound/notification_sound.wav');
+    audio.volume = 0.8; 
+    audio.play().catch(error => {
+        console.error('Failed to play notification sound:', error);
+    });
+    
+    // Update the browser tab title with the count
+    updateDocumentTitle(count);
+};
+
+// Add watcher for total unread messages
+watch(
+    [activeUnreadCount, archivedUnreadCount, spamUnreadCount],
+    ([active, archived, spam]) => {
+        const totalUnread = active + archived + spam;
+        updateDocumentTitle(totalUnread);
+    },
+    { immediate: true }
+);
+
 onMounted(() => {
     allConversations.value = props.conversations;
-    // // Set up refresh interval
-    const refreshInterval = setInterval(async () => {
-        try {
-            const response = await axios.get(route('helpdesk.support'));
-            if (response.data.conversations) {
-                allConversations.value = response.data.conversations;
-                gridApi.value[activeTab.value]?.refreshCells({ force: true });
-            }
-        } catch (error) {
-            console.error('Failed to refresh conversations:', error);
-        }
-    }, 3000);
 
-    // Clean up interval
-    onUnmounted(() => clearInterval(refreshInterval));
+    window.Echo.channel('helpdesk')
+        .listen('ConversationStatusChanged', (event) => {
+            const { conversation } = event;
+            const index = allConversations.value.findIndex(c => c.id === conversation.id);
+            
+            if (index !== -1) {
+                // Only update the changed fields
+                allConversations.value[index] = {
+                    ...allConversations.value[index],
+                    status: conversation.status
+                };
+                
+                // Update selected conversation if it's currently being viewed
+                if (selectedConversation.value?.id === conversation.id) {
+                    selectedConversation.value.status = conversation.status;
+                }
+
+                safeRefreshCells();
+                showToast(`Status changed to ${conversation.status}`, 'info');
+            }
+        })
+        .listen('ConversationsChange', (event) => {
+
+
+            if (event.action === 'new') {
+                refreshConversations();
+                showToast('New conversation/Messages received', 'info');
+                
+                // Calculate total unread messages
+                const totalUnread = activeUnreadCount.value + 
+                                  archivedUnreadCount.value + 
+                                  spamUnreadCount.value;
+                playNotification(totalUnread);
+                return;
+            }
+            
+            if (event.action === 'new_message') {
+                refreshConversations();
+                return;
+            }
+
+            if (event.action === 'spam' || event.action === 'unspam') {
+                refreshConversations();
+                // showToast(`Conversations updated - ${event.action}`, 'info');
+                return;
+            }
+
+            if (event.conversation) {
+                const index = allConversations.value.findIndex(c => c.id === event.conversation.id);
+                
+                if (index !== -1) {
+                    // Only update specific fields based on the action type
+                    switch (event.action) {
+                        case 'department_change':
+                            allConversations.value[index].department_id = event.conversation.department_id;
+                            allConversations.value[index].department = event.conversation.department;
+                            if (selectedConversation.value?.id === event.conversation.id) {
+                                selectedConversation.value.department_id = event.conversation.department_id;
+                                selectedConversation.value.department = event.conversation.department;
+                            }
+                            break;
+                            
+                        case 'agent_change':
+                            allConversations.value[index].agent_id = event.conversation.agent_id;
+                            allConversations.value[index].agent = event.conversation.agent;
+                            if (selectedConversation.value?.id === event.conversation.id) {
+                                selectedConversation.value.agent_id = event.conversation.agent_id;
+                                selectedConversation.value.agent = event.conversation.agent;
+                            }
+                            break;
+                    }
+                    
+                    safeRefreshCells();
+                    playNotification();
+
+                    showToast(
+                        event.action === 'department_change' 
+                            ? 'Department assignment updated' 
+                            : 'Agent assignment updated',
+                        'info'
+                    );
+                }
+            }
+        })
+        
+});
+
+// Add cleanup on unmount
+onUnmounted(() => {
+    window.Echo.leave('helpdesk');
+    document.title = originalTitle;
 });
 
 // Back to grid handler
 const handleBackToGrid = () => {
     showChatArea.value = false;
     selectedConversation.value = null;
+    // refreshConversations(); 
 };
 
-// Fix the methods that were undefined
-const handleAssignment = (data) => {
-    console.log('Assigning:', data);
-    // Implement assignment logic
-};
 
-const handleTransfer = (data) => {
-    console.log('Transferring:', data);
-    // Implement transfer logic
-};
-
-const handleSendMessage = (data) => {
-    console.log('Sending message:', data);
-    // Implement send message logic
-};
-
-// Add handler for agent assignment from grid
-const handleAgentAssignment = (event, conversationId) => {
-    const agentId = event.target.dataset.agentId;
-    if (agentId) {
-        handleAssignment({
-            conversationId,
-            agentId: parseInt(agentId)
-        });
-    }
-};
 
 // Add method to refresh the grid
 const refreshGrid = () => {
@@ -776,21 +914,13 @@ const closeAllDropdowns = () => {
     showAgentMenu.value = false;
 };
 
-onMounted(() => {
-    document.addEventListener('click', closeAllDropdowns);
-});
-
-onUnmounted(() => {
-    document.removeEventListener('click', closeAllDropdowns);
-});
-
-// Add computed property for archive button text
 const archiveButtonText = computed(() => {
     if (activeTab.value === 'archived') {
         return 'Reopen Selected';
     }
     return 'Solve Selected';
 });
+
 
 </script>
 
@@ -996,24 +1126,19 @@ const archiveButtonText = computed(() => {
                                 :departments="departments"
                                 :agents="agents"
                                 :signatures="signatures"
-                                @assign="handleAssignment"
-                                @transfer="handleTransfer"
-                                @mark-spam="handleSpam"
-                                @archive="handleArchive"
-                                @escalate="handleEscalate"
-                                @send-message="handleSendMessage"
+                                @close="handleBackToGrid"                        
                             />
                         </div>
                     </div>
 
                     <!-- Update UserInfoPanel to include previous conversations -->
-                    <div class="w-80 border-l mr-4">
+                    <!-- <div class="w-80 border-l mr-4">
                         <UserInfoPanel
                             v-if="selectedConversation"
                             :support-user="selectedConversation.user"
                             :user-conversations="userPreviousConversations"
                         />
-                    </div>
+                    </div> -->
                 </div>
             </div>
         </div>

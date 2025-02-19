@@ -18,7 +18,6 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use App\Enums\ConversationStatus;
 use DateTimeImmutable;
-use App\Events\ConversationsChange;
 use Ddeboer\Imap\Message\EmailAddress;
 
 class FetchImapEmails implements ShouldQueue
@@ -63,14 +62,7 @@ class FetchImapEmails implements ShouldQueue
                 $lastEmailDate = $message->getDate();
                 if ($this->processEmail($message)) {
                     $processed++;
-
                 }
-            }
-
-            if ($processed != 0) {
-                // Broadcast event if any messages were processed
-                broadcast(new ConversationsChange('new'))->toOthers();
-                Log::channel('email-sync')->info("Broadcasting new conversations event for {$processed} messages");
             }
 
             Log::channel('email-sync')->info("Processed {$processed} new messages out of {$messageCount} total");

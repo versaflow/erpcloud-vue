@@ -1,24 +1,27 @@
 import { ref } from 'vue';
 
 const toasts = ref([]);
-let id = 0;
+let nextId = 0;
 
 export function useToast() {
-    const add = ({ severity = 'info', summary = '', detail = '', life = 3000 }) => {
-        const toast = {
-            id: id++,
-            severity,
-            summary,
-            detail
-        };
-        
-        toasts.value.push(toast);
-        
-        if (life) {
-            setTimeout(() => {
-                removeToast(toast.id);
-            }, life);
+    const showToast = (options) => {
+        if (typeof options === 'string') {
+            options = { detail: options };
         }
+
+        const toast = {
+            id: nextId++,
+            severity: options.severity || 'info',
+            summary: options.summary || 'Message',
+            detail: options.detail,
+            life: options.life || 3000
+        };
+
+        toasts.value.push(toast);
+
+        setTimeout(() => {
+            removeToast(toast.id);
+        }, toast.life);
     };
 
     const removeToast = (id) => {
@@ -30,7 +33,7 @@ export function useToast() {
 
     return {
         toasts,
-        add,
+        showToast,
         removeToast
     };
-};
+}

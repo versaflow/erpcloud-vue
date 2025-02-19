@@ -8,15 +8,17 @@ use App\Models\EmailSignature;
 use App\Models\SupportUser;
 use App\Models\Conversation;
 use App\Models\User;
-use App\Jobs\FetchImapEmails;  // Add this import
+use App\Jobs\FetchImapEmails;  
 use App\Models\SpamContact;
 use App\Enums\ConversationStatus;
 use Illuminate\Http\Request;
-use App\Models\SmtpSetting; // Add this import
+use App\Models\SmtpSetting;
 use App\Services\EmailService;
-use App\Models\Message;  // Add this import
-use App\Enums\MessageStatus; // Add this import
+use App\Models\Message; 
+use App\Enums\MessageStatus; 
+use App\Events\ConversationStatusChanged;
 use  App\Services\LoggingService;
+use App\Events\ConversationsChange;
 
 use Inertia\Inertia;
 use Illuminate\Support\Facades\DB;
@@ -307,10 +309,6 @@ class HelpdeskController extends Controller
                 ->get()
         ];
 
-        Log::info('Final response data counts:', [
-            'departments' => count($response['departments']),
-            'agents' => count($response['agents'])
-        ]);
 
         return Inertia::render('Helpdesk/Support', $response);
     }
@@ -431,6 +429,7 @@ class HelpdeskController extends Controller
                 // Then delete the spam contact
                 $spamContact->delete();
             });
+            broadcast(new ConversationsChange('unspam'))->toOthers();
 
             return response()->json([
                 'message' => 'Contact removed from spam list and conversations updated'
@@ -465,8 +464,11 @@ class HelpdeskController extends Controller
                 }
             });
 
+            // Broadcast the new event
+            broadcast(new ConversationsChange('spam'))->toOthers();
+
             return response()->json([
-                'message' => 'Contact added to spam list and conversations updated'
+                'message' => 'Contact added to spam list'
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -481,31 +483,38 @@ class HelpdeskController extends Controller
             'department_id' => 'nullable|exists:departments,id'
         ]);
 
-        $conversation->update([
-            'department_id' => $validated['department_id']
-        ]);
+        try {
+            $conversation->update(['department_id' => $validated['department_id']]);
+            
+            // Get fresh conversation with department relation
+            $conversation->load('department');
+            
+            broadcast(new ConversationsChange('department_change', $conversation))->toOthers();
 
-        return response()->json([
-            'message' => 'Department assigned successfully',
-            'conversation' => $conversation
-        ]);
+            return response()->json([
+                'message' => 'Department assigned successfully',
+                'conversation' => $conversation
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to assign department'
+            ], 500);
+        }
     }
 
     public function assignAgent(Request $request, Conversation $conversation)
-
     {
         $validated = $request->validate([
             'agent_id' => 'nullable|sometimes|exists:users,id'
         ]);
 
         try {
-            DB::transaction(function () use ($conversation, $validated) {
-                $conversation->update([
-                    'agent_id' => $validated['agent_id'],
-                    //TODO:undate status to assigned
-                    // 'status' => ConversationStatus::ASSIGNED
-                ]);
-            });
+            $conversation->update(['agent_id' => $validated['agent_id']]);
+            
+            // Get fresh conversation with agent relation
+            $conversation->load('agent');
+            
+            broadcast(new ConversationsChange('agent_change', $conversation))->toOthers();
 
             return response()->json([
                 'message' => 'Agent assigned successfully',
@@ -522,15 +531,25 @@ class HelpdeskController extends Controller
     {
         try {
             $conversation->update([
-                'status' => ConversationStatus::CLOSED,  // Changed from 'archived' to CLOSED enum
+                'status' => ConversationStatus::CLOSED,
                 'archived_at' => now()
             ]);
+
+
+
+                broadcast(new ConversationStatusChanged($conversation))->toOthers();
+      
+
 
             return response()->json([
                 'message' => 'Conversation archived successfully',
                 'conversation' => $conversation
             ]);
         } catch (\Exception $e) {
+            Log::error('Failed to archive conversation', [
+                'conversation_id' => $conversation->id,
+                'error' => $e->getMessage()
+            ]);
             return response()->json([
                 'error' => 'Failed to archive conversation'
             ], 500);
@@ -553,6 +572,9 @@ class HelpdeskController extends Controller
                 ]);
             });
 
+            // Broadcast both events
+            broadcast(new ConversationsChange('unspam'))->toOthers();
+
             return response()->json([
                 'message' => 'Conversation removed from spam',
                 'conversation' => $conversation
@@ -568,15 +590,25 @@ class HelpdeskController extends Controller
     {
         try {
             $conversation->update([
-                'status' => ConversationStatus::NEW,
+                'status' => ConversationStatus::OPEN,
                 'archived_at' => null
             ]);
 
+
+            // Broadcast the event
+            broadcast(new ConversationStatusChanged($conversation))->toOthers();
+          
             return response()->json([
                 'message' => 'Conversation unarchived successfully',
                 'conversation' => $conversation
             ]);
+
+
         } catch (\Exception $e) {
+            Log::error('Failed to unarchive conversation', [
+                'conversation_id' => $conversation->id,
+                'error' => $e->getMessage()
+            ]);
             return response()->json([
                 'error' => 'Failed to unarchive conversation'
             ], 500);
@@ -625,7 +657,6 @@ class HelpdeskController extends Controller
         $validated = $request->validate([
             'content' => 'required|string',
             'type' => 'required|in:text,email',
-            // 'subject' => 'nullable|string|required_if:type,email',
             'attachments' => 'nullable|array',
             'attachments.*.path' => 'required|string',
             'attachments.*.mime_type' => 'required|string',
@@ -636,30 +667,32 @@ class HelpdeskController extends Controller
 
         try {
             $this->logger->logInfoEmail('Sending message', [
-                'type' => $validated['type'],
-                'conversation_id' => $conversation->id
+            'type' => $validated['type'],
+            'conversation_id' => $conversation->id
             ]);
 
-            if ($validated['type'] === 'email') {
-                $message = $this->emailService->sendReply($conversation, $validated);
-            } else {
-                $message = Message::create([
-                    'conversation_id' => $conversation->id,
-                    'user_id' => Auth::id(),
-                    'content' => $validated['content'],
-                    'type' => 'text',
-                    'status' => MessageStatus::SENT
-                ]);
 
-                $this->logger->logInfoEmail('Internal note created', [
-                    'conversation_id' => $conversation->id,
-                    'message_id' => $message->id
-                ]);
+            if ($validated['type'] === 'email') {
+            $message = $this->emailService->sendReply($conversation, $validated);
+            
+            } else {
+            $message = Message::create([
+                'conversation_id' => $conversation->id,
+                'user_id' => Auth::id(),
+                'content' => $validated['content'],
+                'type' => 'text',
+                'read_at' => now(),
+                'status' => MessageStatus::SENT
+            ]);
             }
 
+ 
+            
+            broadcast(new ConversationsChange('new_message', $conversation, $message))->toOthers();
+
             return response()->json([
-                'message' => 'Message sent successfully',
-                'data' => $message->load('attachments')
+            'message' => 'Message sent successfully',
+            'data' => $message
             ]);
 
         } catch (\Exception $e) {
@@ -763,5 +796,77 @@ class HelpdeskController extends Controller
                 ])
             ])
         ]);
+    }
+
+    public function getConversations()
+    {
+        $conversations =  Conversation::with([
+            'supportUser',
+            'department',
+            'messages.attachments'
+        ])
+        ->withCount(['messages' => function($query) {
+            $query->where('status', 'unread');
+        }])
+        ->latest()
+        ->get()
+        ->map(fn($conversation) => [
+            'id' => $conversation->id,
+
+            'subject' => $conversation->subject,
+            'status' => $conversation->status,
+            'from_email' => $conversation->from_email,
+            'source' => $conversation->source,
+            'to_email' => $conversation->to_email,
+            'created_at' => $conversation->created_at->diffForHumans(),
+            'updated_at' => $conversation->getLastUpdatedMessageTime()?->format('Y-m-d H:i:s'),          
+            'department' => $conversation->department?->name,
+            'department_id' => $conversation->department_id,
+            'agent_id' => $conversation->agent_id,
+            'user' => [
+                'id' => $conversation->supportUser->id,
+                'name' => $conversation->supportUser->name,
+                'email' => $conversation->supportUser->email,
+                'initials' => substr($conversation->supportUser->name, 0, 2),
+                'phone' => $conversation->supportUser->phone,
+                'company' => $conversation->supportUser->company,
+                'location' => $conversation->supportUser->location,
+                'timezone' => $conversation->supportUser->timezone,
+                'tags' => $conversation->supportUser->tags,
+                'notes' => $conversation->supportUser->notes,
+                'created_at' => $conversation->supportUser->created_at->format('Y-m-d'),
+                'total_conversations' => $conversation->supportUser->conversations()->count(),
+                'last_contact' => $conversation->supportUser->last_seen_at?->diffForHumans()
+            ],
+            'messages' => $conversation->messages->map(fn($message) => [
+                'id' => $message->id,
+                'type' => $message->type,
+                
+                'content' => $message->content,
+      
+                'created_at' => $message->created_at->format('Y-m-d H:i:s'),
+                'conversation_id' => $message->conversation_id,
+                'email_message_id' => $message->email_message_id,
+                'support_user_id' => $message->support_user_id,
+                'user_id' => $message->user_id,
+                'agent' => $message->user_id ? [
+                    'name' => User::find($message->user_id)?->name ?? 'N/A',
+                    'email' => User::find($message->user_id)?->email ?? 'N/A',
+                ] : null,
+                'status' => $message->status,
+                'read_at' => $message->read_at,
+                'has_attachments' => $message->attachments()->exists(),
+                'attachments' => $message->attachments->map(fn($attachment) => [
+                    'id' => $attachment->id,
+                    'name' => $attachment->filename,
+                    'size' => $this->formatFileSize($attachment->size),
+                    'url' => $attachment->path,
+                    'type' => $attachment->mime_type
+                ])
+            ]),
+            'unread_messages_count' => $conversation->messages_count,
+        ]);
+
+        return response()->json($conversations);
     }
 }

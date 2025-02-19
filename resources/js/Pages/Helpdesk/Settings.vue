@@ -8,7 +8,7 @@ import WhatsAppConfigForm from './Components/WhatsAppConfigForm.vue';
 import Toast from '@/Components/Toast.vue';
 
 // Initialize toast
-const toast = useToast();
+const { showToast } = useToast();
 
 // Update the props definition
 const props = defineProps({
@@ -112,10 +112,20 @@ const syncEmails = async (imapConfig) => {
         });
         
         imapConfig.last_sync_at = response.data.last_sync;
-        showSuccess('Email sync completed successfully');
+        showToast({
+            severity: 'success',
+            summary: 'Success',
+            detail: 'Email sync completed successfully',
+            life: 3000
+        });
     } catch (error) {
         console.error('Sync failed:', error);
-        alert('Failed to sync emails: ' + (error.response?.data?.error || error.message));
+        showToast({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'Failed to sync emails: ' + (error.response?.data?.error || error.message),
+            life: 5000
+        });
     } finally {
         syncingStates.value.set(imapConfig.id, false);
     }
