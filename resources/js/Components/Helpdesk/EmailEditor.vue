@@ -117,8 +117,7 @@ const handleSend = () => {
         attachments: uploadedFiles.value
     };
     
-    // Debug log
-    console.log('Sending email data:', formData);
+
     
     emit('send', formData);
     resetForm();

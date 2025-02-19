@@ -23,12 +23,6 @@ const props = defineProps({
     }
 });
 
-console.log('FilterSidebar Props:', {
-    departmentsCount: props.departments?.length,
-    agentsCount: props.agents?.length,
-    departments: props.departments,
-    agents: props.agents
-});
 
 const emit = defineEmits(['filter-change']);
 
@@ -76,26 +70,18 @@ watch(
 
 // Add debug watch
 watch(() => props.departments, (newDepts) => {
-    console.log('Departments changed:', {
-        count: newDepts?.length,
-        departments: newDepts
-    });
+
 }, { immediate: true });
 
 watch(() => props.agents, (newAgents) => {
-    console.log('Agents changed:', {
-        count: newAgents?.length,
-        agents: newAgents
-    });
+
 }, { immediate: true });
 
 // Add debug info
 watch(() => props.departments, (newDepts) => {
-    console.log('Available Departments:', newDepts);
 }, { immediate: true });
 
 watch(selectedDepartment, (newDept) => {
-    console.log('Selected Department:', newDept);
 }, { immediate: true });
 </script>
 
