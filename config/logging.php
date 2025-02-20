@@ -140,6 +140,13 @@ return [
             'days' => 14,
         ],
 
+        'pusher' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/pusher.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => 14,
+        ],
+
     ],
 
 ];

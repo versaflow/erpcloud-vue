@@ -9,6 +9,7 @@ use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use App\Models\Conversation;
 use App\Models\Message;
+use Illuminate\Support\Facades\Log;
 
 class ConversationsChange implements ShouldBroadcast
 {
@@ -72,11 +73,23 @@ class ConversationsChange implements ShouldBroadcast
             }
         }
 
+        Log::info('ConversationsChange Broadcasting Event', [
+            'channel' => 'helpdesk',
+            'action' => $this->action,
+            'data' => $data,
+            'pusher_app_id' => config('broadcasting.connections.pusher.app_id'),
+            'pusher_cluster' => config('broadcasting.connections.pusher.options.cluster'),
+            'connection' => config('broadcasting.default')
+        ]);
+
         return $data;
     }
 
     public function broadcastOn()
     {
+        Log::info('ConversationsChange Channel Selection', [
+            'channel' => 'helpdesk'
+        ]);
         return new Channel('helpdesk');
     }
 }

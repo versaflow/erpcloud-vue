@@ -8,6 +8,8 @@ use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvi
 use Illuminate\Support\Facades\Event;
 use App\Events\ConversationStatusChanged;
 use App\Events\ConversationsChange;
+use Illuminate\Support\Facades\Log;
+
 
 class EventServiceProvider extends ServiceProvider
 {
@@ -21,7 +23,7 @@ class EventServiceProvider extends ServiceProvider
             SendEmailVerificationNotification::class,
         ],
         ConversationStatusChanged::class => [],
-        ConversationsChange::class => [], // Add this line
+        ConversationsChange::class => [], 
     ];
 
     /**
@@ -29,7 +31,17 @@ class EventServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // If you want automatic event discovery, leave this empty
+        parent::boot();
+        
+        // Add debug logging for event broadcasting
+        Event::listen('*', function ($eventName, array $data) {
+            if (str_contains($eventName, 'ConversationsChange')) {
+                Log::info("Broadcasting event: {$eventName}", [
+                    'data' => $data,
+                    'time' => now()->toIso8601String()
+                ]);
+            }
+        });
     }
 
     /**
