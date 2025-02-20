@@ -33,18 +33,18 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8',
-            'role' => 'required|in:admin,agent,user',
             'department_id' => 'nullable|exists:departments,id',
+            'is_admin' => 'boolean',
+            'is_agent' => 'boolean',
         ]);
 
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
-            'role' => $validated['role'],
             'department_id' => $validated['department_id'],
-            'is_admin' => $validated['role'] === User::ROLE_ADMIN,
-            'is_agent' => $validated['role'] === User::ROLE_AGENT,
+            'is_admin' => $validated['is_admin'],
+            'is_agent' => $validated['is_agent'],
         ]);
 
         return redirect()->route('users.index')->with('success', 'User created successfully');
