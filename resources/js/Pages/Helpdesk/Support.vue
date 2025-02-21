@@ -139,7 +139,7 @@ const tabs = [
         label: 'Solved',
         count: computed(() => archivedConversations.value.length),
         unreadCount: computed(() => archivedUnreadCount.value),
-        color: 'text-green bg-gray-50 ring-gray-500/10'
+        color: 'text-green-600 bg-green-50 ring-green-500/10' // Updated to always be green
     },
     { 
         id: 'spam', 
@@ -1087,9 +1087,13 @@ const archiveButtonText = computed(() => {
                                     @click="activeTab = tab.id"
                                     :class="[
                                         'flex items-center gap-2 py-3 px-4 border-b-2 text-sm font-medium relative',
-                                        activeTab === tab.id
-                                            ? 'border-indigo-500 text-indigo-600 bg-indigo-50/50'
-                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+                                        tab.id === 'archived' 
+                                            ? activeTab === tab.id
+                                                ? 'border-green-500 text-green-600 bg-green-50/50'
+                                                : 'border-transparent text-green-600 hover:text-green-700 hover:border-green-300 hover:bg-green-50'
+                                            : activeTab === tab.id
+                                                ? 'border-indigo-500 text-indigo-600 bg-indigo-50/50'
+                                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 hover:bg-gray-50'
                                     ]">
                                 <div class="flex items-center gap-2">
                                     {{ tab.label }}
