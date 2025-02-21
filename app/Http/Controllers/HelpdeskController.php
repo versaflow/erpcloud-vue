@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use Barryvdh\DomPDF\Facade\Pdf;  // Add this import
+use Illuminate\Support\Str; // Add this import
 use App\Models\EmailSetting;
 use App\Models\Department;
 use App\Models\EmailSignature;
@@ -10,6 +12,7 @@ use App\Models\Conversation;
 use App\Models\User;
 use App\Jobs\FetchImapEmails;  
 use App\Models\SpamContact;
+use App\Models\KnowledgeBaseArticle;
 use App\Enums\ConversationStatus;
 use Illuminate\Http\Request;
 use App\Models\SmtpSetting;
@@ -868,5 +871,103 @@ class HelpdeskController extends Controller
         ]);
 
         return response()->json($conversations);
+    }
+
+    public function getKnowledgeBaseArticles(Request $request)
+    {
+        $articles = KnowledgeBaseArticle::select('id', 'title', 'content', 'sent_count')
+            ->get()
+            ->map(function($article) {
+                return [
+                    'id' => $article->id,
+                    'title' => $article->title,
+                    'content' => Str::limit(strip_tags($article->content), 200),
+                    'sent_count' => $article->sent_count
+                ];
+            });
+
+        return response()->json($articles);
+    }
+
+    public function handleArticleSelect(KnowledgeBaseArticle $article)
+    {
+        $article->incrementSentCount();
+        
+        return response()->json([
+            'id' => $article->id,
+            'title' => $article->title,
+            'content' => $article->content,
+            'sent_count' => $article->sent_count
+        ]);
+    }
+
+    public function getArticlePdf(KnowledgeBaseArticle $article)
+    {
+        $pdf = PDF::loadView('pdf.knowledge-base-article', [
+            'article' => $article
+        ]);
+        
+        return $pdf->download($article->title . '.pdf');
+    }
+
+    public function manageKnowledgeBase()
+    {
+        return Inertia::render('Helpdesk/knowledgeBase', [
+            'articles' => KnowledgeBaseArticle::with(['department', 'author'])
+                ->latest()
+                ->get()
+                ->map(fn($article) => [
+                    'id' => $article->id,
+                    'title' => $article->title,
+                    'content' => $article->content,
+                    'department' => $article->department?->name ?? 'General',
+                    'author' => $article->author->name,
+                    'status' => $article->status,
+                    'tags' => $article->tags,
+                    'view_count' => $article->view_count,
+                    'created_at' => $article->created_at->format('Y-m-d H:i:s'),
+                    'updated_at' => $article->updated_at->format('Y-m-d H:i:s')
+                ]),
+            'departments' => Department::select('id', 'name')->get()
+        ]);
+    }
+
+    public function storeArticle(Request $request)
+    {
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'content' => 'required|string',
+            'department_id' => 'required|exists:departments,id', 
+            'tags' => 'nullable|array',
+            'status' => 'required|in:draft,published'
+        ]);
+
+        $article = KnowledgeBaseArticle::create([
+            ...$validated,
+            'author_id' => Auth::id()
+        ]);
+
+        return response()->json($article);
+    }
+
+    public function updateArticle(Request $request, KnowledgeBaseArticle $article)
+    {
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'content' => 'required|string',
+            'department_id' => 'required|exists:departments,id',
+            'tags' => 'nullable|array',
+            'status' => 'required|in:draft,published'
+        ]);
+
+        $article->update($validated);
+
+        return response()->json($article);
+    }
+
+    public function deleteArticle(KnowledgeBaseArticle $article)
+    {
+        $article->delete();
+        return response()->json(['message' => 'Article deleted successfully']);
     }
 }

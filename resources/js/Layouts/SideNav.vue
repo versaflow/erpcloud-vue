@@ -181,7 +181,12 @@ const helpdeskItems = computed(() => {
             route: 'helpdesk.support',
             path: '/helpdesk/support'
         },
-     
+        {
+            name: 'Knowledge Base',
+            icon: 'fas fa-book',
+            route: 'helpdesk.kb.manage',
+            path: '/helpdesk/kb/manage'
+        }
     ];
 
     if (user.value.is_admin) {

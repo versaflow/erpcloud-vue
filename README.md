@@ -116,3 +116,14 @@ composer require phpmailer/phpmailer
         // "ddeboer/imap": "^1.19",
         // "ddeboer/imap": "^1.21",
 php artisan queue:work
+
+composer require barryvdh/laravel-dompdf
+
+npm install @tiptap/vue-3 @tiptap/pm @tiptap/starter-kit @tiptap/extension-link @tiptap/extension-image
+
+npm install @tiptap/vue-3 @tiptap/pm @tiptap/starter-kit @tiptap/extension-link @tiptap/extension-image
+
+npm install @tiptap/extension-typography @tiptap/extension-table @tiptap/extension-highlight @tiptap/extension-underline @tiptap/extension-code-block @tiptap/extension-text-align @tiptap/extension-color @tiptap/extension-superscript @tiptap/extension-subscript @tiptap/extension-task-list @tiptap/extension-placeholder
+
+npm install @tiptap/extension-table-row @tiptap/extension-table-header @tiptap/extension-table-cell
+npm install @tiptap/extension-task-item @tiptap/extension-text-style

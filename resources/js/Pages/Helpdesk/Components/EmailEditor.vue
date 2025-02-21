@@ -1,6 +1,8 @@
 <script setup>
+// Add KnowledgeBaseSelector to imports
 import { ref, computed, watch, onMounted } from 'vue';
 import Icon from '@/Components/Icons/Index.vue';
+import KnowledgeBaseSelector from './KnowledgeBaseSelector.vue';
 
 const props = defineProps({
     recipient: {
@@ -22,6 +24,10 @@ const props = defineProps({
     loading: {
         type: Boolean,
         default: false
+    },
+    departmentId: {
+        type: Number,
+        required: true
     }
 });
 
@@ -40,6 +46,15 @@ const selectedFiles = ref([]); // Track selected files before upload
 
 const isUploading = ref(false); // Add this ref for global upload state
 const uploadProgress = ref({}); // Track progress for each file
+
+const showKnowledgeBase = ref(false);
+const selectedArticle = ref(null);
+
+// Add computed property for department ID
+const currentDepartmentId = computed(() => {
+    // Convert to number or return null if undefined/null
+    return props.departmentId ? Number(props.departmentId) : null;
+});
 
 // File handling methods
 function triggerFileUpload() {
@@ -139,6 +154,37 @@ onMounted(() => {
         }
     }
 });
+
+// Add new method to handle article selection
+const handleArticleSelect = async (article) => {
+    try {
+        // Request PDF version of the article
+        const response = await axios.get(`/helpdesk/kb/articles/${article.id}/pdf`, {
+            responseType: 'blob'
+        });
+        
+        // Create file object from blob
+        const file = new File([response.data], `${article.title}.pdf`, {
+            type: 'application/pdf'
+        });
+        
+        // Add to selected files and trigger upload
+        selectedFiles.value.push({
+            file,
+            name: file.name,
+            size: formatFileSize(file.size),
+            uploading: true
+        });
+        
+        await uploadFile(file);
+        
+        // Optionally append article content to message
+        content.value += `\n\nRelated article: ${article.title}\n`;
+        
+    } catch (error) {
+        console.error('Failed to attach knowledge base article:', error);
+    }
+};
 </script>
 
 <template>
@@ -251,6 +297,13 @@ onMounted(() => {
                           :class="{ 'animate-spin': isUploading }" />
                     {{ isUploading ? 'Uploading...' : 'Attach' }}
                 </button>
+
+                <!-- Add Knowledge Base button -->
+                <button @click="showKnowledgeBase = true"
+                        class="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900">
+                    <Icon name="book-open" size="4" />
+                    Knowledge Base
+                </button>
             </div>
 
             <!-- Send button -->
@@ -263,6 +316,15 @@ onMounted(() => {
                 {{ loading ? 'Sending...' : 'Send' }}
             </button>
         </div>
+
+        <!-- Knowledge Base Selector Modal -->
+        <KnowledgeBaseSelector
+            v-if="showKnowledgeBase"
+            :department-id="currentDepartmentId"
+            :is-open="showKnowledgeBase"
+            @close="showKnowledgeBase = false"
+            @select="handleArticleSelect"
+        />
     </div>
 </template>
 

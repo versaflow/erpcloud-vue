@@ -130,6 +130,18 @@ Route::middleware(['auth', 'admin'])->group(function () {
     
     Route::post('/helpdesk/conversations/{conversation}/messages', [HelpdeskController::class, 'sendMessage'])
         ->name('helpdesk.conversations.send-message');
+
+    // Knowledge Base Management Routes
+    Route::prefix('helpdesk/kb')->group(function () {
+        Route::get('/manage', [HelpdeskController::class, 'manageKnowledgeBase'])
+            ->name('helpdesk.kb.manage');
+        Route::post('/articles', [HelpdeskController::class, 'storeArticle'])
+            ->name('helpdesk.kb.articles.store');
+        Route::put('/articles/{article}', [HelpdeskController::class, 'updateArticle'])
+            ->name('helpdesk.kb.articles.update');
+        Route::delete('/articles/{article}', [HelpdeskController::class, 'deleteArticle'])
+            ->name('helpdesk.kb.articles.delete');
+    });
 }); // This is the correct closing brace
 
 Route::middleware(['auth'])->group(function () {
@@ -138,6 +150,16 @@ Route::middleware(['auth'])->group(function () {
     
     Route::post('/api/upload', [FileUploadController::class, 'store'])
         ->name('api.upload');
+
+    // Knowledge Base Routes - make sure these are outside admin middleware
+    Route::prefix('helpdesk/kb')->group(function () {
+        Route::get('/articles', [HelpdeskController::class, 'getKnowledgeBaseArticles'])
+            ->name('helpdesk.kb.articles');
+        Route::get('/articles/{article}/pdf', [HelpdeskController::class, 'getArticlePdf'])
+            ->name('helpdesk.kb.article.pdf');
+        Route::post('/articles/{article}/select', [HelpdeskController::class, 'handleArticleSelect'])
+            ->name('helpdesk.kb.articles.select');
+    });
 });
 
 // Test routes
@@ -163,6 +185,27 @@ Route::get('/test-schedule', function() {
         'events' => $events,
         'next_run' => $schedule->events()[0]->nextRunDate(),
     ];
+});
+
+// Add this route for testing (remove later)
+Route::get('/test/kb-articles', function() {
+    return response()->json([
+        'count' => \App\Models\KnowledgeBaseArticle::count(),
+        'articles' => \App\Models\KnowledgeBaseArticle::with(['department', 'author'])->get()
+    ]);
+});
+
+// Add this temporary debug route
+Route::get('/debug/routes', function() {
+    $routes = collect(Route::getRoutes())->map(function ($route) {
+        return [
+            'uri' => $route->uri(),
+            'name' => $route->getName(),
+            'methods' => $route->methods(),
+        ];
+    });
+    
+    return response()->json($routes);
 });
 
 require __DIR__.'/auth.php';

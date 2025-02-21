@@ -2,14 +2,14 @@
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
 import { Head, usePage, router } from '@inertiajs/vue3'; // Add router here
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import ChatArea from '@/Components/Helpdesk/ChatArea.vue';
+import ChatArea from '@/Pages/Helpdesk/Components/ChatArea.vue';
 import { AgGridVue } from '@ag-grid-community/vue3';
 import { ModuleRegistry } from '@ag-grid-community/core';
 import { ClientSideRowModelModule } from '@ag-grid-community/client-side-row-model';
 import { useToast } from '@/Composables/useToast'; 
 import '@ag-grid-community/styles/ag-grid.css';
 import '@ag-grid-community/styles/ag-theme-alpine.css';
-import UserInfoPanel from '@/Components/Helpdesk/UserInfoPanel.vue';
+import UserInfoPanel from '@/Pages/Helpdesk/Components/UserInfoPanel.vue';
 import axios from 'axios';  // Make sure axios is imported
 const { showToast } = useToast();
 
