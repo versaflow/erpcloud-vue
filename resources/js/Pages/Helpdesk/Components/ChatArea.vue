@@ -587,7 +587,7 @@ const handleBackToGrid = () => {
         </div>
 
         <!-- Update messages area with ref -->
-        <div class="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900" ref="messagesContainer">
+        <div class="flex-1 overflow-y-auto p-4 bg-gray-50 " ref="messagesContainer">
             <div v-if="isLoading" class="flex justify-center items-center h-full">
                 <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
             </div>
@@ -601,7 +601,7 @@ const handleBackToGrid = () => {
         </div>
 
         <!-- Reply area stays fixed at bottom -->
-        <div class="border-t bg-white dark:bg-gray-800 dark:border-gray-700 p-4"> <!-- Added p-4 -->
+        <div class="border-t bg-white p-4"> <!-- Added p-4 -->
             <!-- Reply mode toggle -->
             <div class="flex justify-between items-center mb-4">
                 <div class="flex items-center gap-2">
