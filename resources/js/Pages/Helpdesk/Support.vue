@@ -717,7 +717,41 @@ watch(
     { immediate: true }
 );
 
+// Add these new functions after the playNotification declaration
+const requestNotificationPermission = async () => {
+    try {
+        if (Notification.permission !== 'granted') {
+            const permission = await Notification.requestPermission();
+            return permission === 'granted';
+        }
+        return true;
+    } catch (error) {
+        console.error('Failed to request notification permission:', error);
+        return false;
+    }
+};
+
+const showBrowserNotification = (title, body) => {
+    try {
+        if (Notification.permission === 'granted') {
+            new Notification(title, {
+                body,
+                icon: '/assets/images/notifications/notification-icon.png',
+                badge: '/assets/images/notifications/notification-badge.png',
+                tag: 'helpdesk-notification',
+                renotify: true
+            });
+        }
+    } catch (error) {
+        console.error('Failed to show browser notification:', error);
+    }
+};
+
+// Modify the existing window.Echo.channel listener
 onMounted(() => {
+    // Request notification permission when component mounts
+    requestNotificationPermission();
+
     allConversations.value = props.conversations;
 
     window.Echo.channel('helpdesk')
@@ -740,6 +774,12 @@ onMounted(() => {
                 safeRefreshCells();
                 showToast(`Status changed to ${conversation.status}`, 'info');
             }
+
+            // Add browser notification
+            showBrowserNotification(
+                'Status Changed',
+                `Conversation status changed to ${event.conversation.status}`
+            );
         })
         .listen('ConversationsChange', (event) => {
 
@@ -752,7 +792,15 @@ onMounted(() => {
                 const totalUnread = activeUnreadCount.value + 
                                   archivedUnreadCount.value + 
                                   spamUnreadCount.value;
+                                  
+                // Play sound notification
                 playNotification(totalUnread);
+                
+                // Show browser notification
+                showBrowserNotification(
+                    'New Message',
+                    'You have received a new conversation or message'
+                );
                 return;
             }
             
@@ -794,7 +842,7 @@ onMounted(() => {
                     
                     safeRefreshCells();
                     playNotification();
-
+          
                     showToast(
                         event.action === 'department_change' 
                             ? 'Department assignment updated' 
