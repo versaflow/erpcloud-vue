@@ -3,6 +3,7 @@
 import { ref, computed, watch, onMounted } from 'vue';
 import Icon from '@/Components/Icons/Index.vue';
 import KnowledgeBaseSelector from './KnowledgeBaseSelector.vue';
+import axios from 'axios';
 
 const props = defineProps({
     recipient: {

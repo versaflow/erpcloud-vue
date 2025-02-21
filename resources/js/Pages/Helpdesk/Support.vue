@@ -139,7 +139,7 @@ const tabs = [
         label: 'Solved',
         count: computed(() => archivedConversations.value.length),
         unreadCount: computed(() => archivedUnreadCount.value),
-        color: 'text-gray-600 bg-gray-50 ring-gray-500/10'
+        color: 'text-green bg-gray-50 ring-gray-500/10'
     },
     { 
         id: 'spam', 

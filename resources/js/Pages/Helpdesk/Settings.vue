@@ -6,6 +6,7 @@ import { useToast } from '@/Composables/useToast';
 import EmailConfigForm from './Components/EmailConfigForm.vue';
 import WhatsAppConfigForm from './Components/WhatsAppConfigForm.vue';
 import Toast from '@/Components/Toast.vue';
+import axios from 'axios';
 
 // Initialize toast
 const { showToast } = useToast();
