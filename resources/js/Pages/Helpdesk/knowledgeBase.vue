@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue';
+import axios from 'axios';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import { useToast } from '@/Composables/useToast';
