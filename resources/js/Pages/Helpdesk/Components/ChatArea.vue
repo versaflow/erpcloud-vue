@@ -625,13 +625,11 @@ const handleBackToGrid = () => {
                     </button>
                 </div>
             </div>
-
             <!-- Quick reply input -->
             <div v-if="!showEmailReply" class="flex items-center gap-3 px-2"> <!-- Added px-2 -->
                 <input v-model="message"
                        type="text"
-                       class="flex-1 rounded-full border px-6 py-3 bg-white dark:bg-gray-700 
-                              dark:border-gray-600 dark:text-gray-200"
+                       class="flex-1 rounded-full border px-6 py-3 bg-white"
                        placeholder="Type your message..."
                        :disabled="isSending"
                        @keyup.enter="sendMessage" />
