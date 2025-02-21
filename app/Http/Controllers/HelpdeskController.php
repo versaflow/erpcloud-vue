@@ -158,6 +158,12 @@ class HelpdeskController extends Controller
                     ]
                 );
 
+                if ($config['department_id']) {
+                    Department::where('id', $config['department_id'])->update([
+                        'email' => $config['email']
+                    ]);
+                }
+
                 // Save SMTP config
                 SmtpSetting::updateOrCreate(
                     ['email_setting_id' => $emailSetting->id],

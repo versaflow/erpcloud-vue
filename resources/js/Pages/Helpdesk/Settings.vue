@@ -416,7 +416,6 @@ watch(activeTab, (newTab) => {
                             <tr>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Agent Count</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                             </tr>
                         </thead>
@@ -424,7 +423,6 @@ watch(activeTab, (newTab) => {
                             <tr v-for="dept in departments" :key="dept.id">
                                 <td class="px-6 py-4 whitespace-nowrap">{{ dept.name }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap">{{ dept.email || 'Not set' }}</td>
-                                <td class="px-6 py-4 whitespace-nowrap">{{ dept.users_count }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
                                             :class="dept.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'">
