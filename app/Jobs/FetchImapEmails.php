@@ -99,13 +99,16 @@ class FetchImapEmails implements ShouldQueue
 
             // Only get basic headers first for duplicate check
             $messageId = $message->getId() ?? $message->getNumber();
-
+            Log::channel('email-sync')->info("Processing message: {$messageId}");
+            
+            
             // Skip if already processed
             if (Message::where('email_message_id', $messageId)->exists()) {
                 Log::channel('email-sync')->info("Skipping already processed message: {$messageId}");
                 DB::commit();
                 return false;
             }
+            Log::channel('email-sync')->info("Processing message: {$messageId}");
 
             // Now get full message details
             $from = $message->getFrom();
@@ -124,9 +127,9 @@ class FetchImapEmails implements ShouldQueue
 
             // Handle as reply or new conversation
             if (preg_match('/^(Re|Fwd|Fw):/i', $subject)) {
-                $this->handleReply($message, $supportUser, $content, $fromEmail);
+                $this->handleReply($messageId, $message, $supportUser, $content, $fromEmail);
             } else {
-                $this->createNewConversation($message, $supportUser, $content, $fromEmail);
+                $this->createNewConversation($messageId, $message, $supportUser, $content, $fromEmail);
             }
 
             DB::commit();
@@ -158,7 +161,7 @@ class FetchImapEmails implements ShouldQueue
         return '<p>No content available</p>';
     }
 
-    protected function handleReply($message, $supportUser, $content, $fromEmail)
+    protected function handleReply( $messageId , $message, $supportUser, $content, $fromEmail)
     {
         $subject = $message->getSubject();
         $cleanSubject = preg_replace('/^(Re|Fwd|Fw):\s*/i', '', $subject);
@@ -179,14 +182,16 @@ class FetchImapEmails implements ShouldQueue
         // Create reply message
         $newMessage = Message::create([
             'content' => $content,
-            'email_message_id' => $message->getId(),
+            'email_message_id' => $messageId,
             'type' => 'reply',
             'support_user_id' => $supportUser->id,
             'conversation_id' => $conversation->id
         ]);
 
+
+
         // Process attachments for the new message
-        $this->processAttachments($message, $newMessage);
+        $this->processAttachments($messageId, $message, $newMessage);
 
         // Update conversation status
         $conversation->update([
@@ -195,7 +200,7 @@ class FetchImapEmails implements ShouldQueue
         ]);
     }
 
-    protected function createNewConversation($message, $supportUser, $content, $fromEmail)
+    protected function createNewConversation($messageId, $message, $supportUser, $content, $fromEmail)
     {
         $conversation = Conversation::create([
             'subject' => $message->getSubject() ?: 'No Subject',
@@ -204,27 +209,29 @@ class FetchImapEmails implements ShouldQueue
             'status' => SpamContact::isSpam($fromEmail) ? ConversationStatus::SPAM : ConversationStatus::NEW,
             'department_id' => $this->emailSetting->department_id,
             'support_user_id' => $supportUser->id,
-            'email_message_id' => $message->getId()
+            'email_message_id' => $messageId
         ]);
 
         $newMessage = Message::create([
             'content' => $content,
-            'email_message_id' => $message->getId(),
+            'email_message_id' => $messageId,
             'type' => 'initial',
             'support_user_id' => $supportUser->id,
             'conversation_id' => $conversation->id
         ]);
 
+
+
         // Process attachments for the new message
-        $this->processAttachments($message, $newMessage);
+        $this->processAttachments($messageId,$message, $newMessage);
 
         return $conversation;
     }
-    protected function processAttachments($emailMessage, $message)
+    protected function processAttachments($messageId, $emailMessage, $message)
     {
         $attachments = $emailMessage->getAttachments();
         Log::channel('email-sync')->info('Processing attachments:', [
-            'message_id' => $message->id,
+            'message_id' => $messageId,
             'attachment_count' => count($attachments)
         ]);
 
