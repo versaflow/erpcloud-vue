@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
+
 
 class FileUploadController extends Controller
 {
@@ -25,10 +27,19 @@ class FileUploadController extends Controller
                 $fileName
             );
 
+            // Log the successful upload
+            Log::info('File uploaded successfully', [
+                'filename' => $fileName,
+                'path' => $path,
+                'size' => $file->getSize(),
+                'mime_type' => $file->getMimeType()
+            ]);
+
             // Return the full storage path
             return response()->json([
                 'name' => $file->getClientOriginalName(),
                 'path' => storage_path('app/public/' . $path),
+                'relative_path' => $path,
                 'size' => $file->getSize(),
                 'mime_type' => $file->getMimeType()
             ]);

@@ -166,6 +166,9 @@ async function sendMessage() {
 // Update handleEmailSend function
 async function handleEmailSend(emailData) {
     if (isSendingEmail.value) return;
+
+    console.log('Email attachments:', emailData.attachments);
+
     
     isSendingEmail.value = true;
     try {

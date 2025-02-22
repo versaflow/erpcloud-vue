@@ -227,7 +227,6 @@ class FetchImapEmails implements ShouldQueue
 
         return $conversation;
     }
-
     protected function processAttachments($messageId, $emailMessage, $message)
     {
         $attachments = $emailMessage->getAttachments();
@@ -238,46 +237,27 @@ class FetchImapEmails implements ShouldQueue
 
         foreach ($attachments as $attachment) {
             try {
-                // Get attachment details
                 $filename = $attachment->getFilename();
-                $content = $attachment->getDecodedContent(); 
+                $content = $attachment->getContent();
                 $mimeType = $attachment->getType() ?? 'application/octet-stream';
                 $size = strlen($content);
 
-                // Create unique path with year/month structure
+
                 $path = 'attachments/' . date('Y/m');
                 $uniquePath = $path . '/' . uniqid() . '_' . $filename;
-
-                // Ensure directory exists
-                Storage::makeDirectory($path);
                 
-                // Store the file using a binary write
-                $stored = Storage::disk('local')->put($uniquePath, $content, [
-                    'mimetype' => $mimeType,
-                    'visibility' => 'private'
-                ]);
+                $storedPath = Storage::put($uniquePath, $content);
 
-                if ($stored) {
-                    // Test if file is readable and verify mime type
-                    $fullPath = Storage::disk('local')->path($uniquePath);
-                    $actualMimeType = mime_content_type($fullPath);
-                    
-                    Log::channel('email-sync')->info('Attachment saved:', [
-                        'filename' => $filename,
-                        'path' => $uniquePath,
-                        'expected_mime' => $mimeType,
-                        'actual_mime' => $actualMimeType,
-                        'size' => $size
-                    ]);
-
+              
+                if ($storedPath) {
                     $attachmentRecord = $message->attachments()->create([
                         'filename' => $filename,
                         'path' => $uniquePath,
-                        'mime_type' => $actualMimeType, 
+                        'mime_type' => $mimeType,
                         'size' => $size
                     ]);
-                } else {
-                    throw new \Exception("Failed to store file");
+
+                
                 }
             } catch (\Exception $e) {
                 Log::channel('email-sync')->error('Failed to save attachment:', [

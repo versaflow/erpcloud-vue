@@ -4,6 +4,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\HelpdeskController;
+use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\FileUploadController;
 use App\Models\Department;
 use Illuminate\Support\Facades\Log;
@@ -142,6 +143,10 @@ Route::middleware(['auth', 'admin'])->group(function () {
         Route::delete('/articles/{article}', [HelpdeskController::class, 'deleteArticle'])
             ->name('helpdesk.kb.articles.delete');
     });
+
+    Route::get('/helpdesk/attachments/{attachment}/download', [AttachmentController::class, 'download'])
+        ->name('helpdesk.attachments.download')
+        ->middleware(['auth']);
 }); // This is the correct closing brace
 
 Route::middleware(['auth'])->group(function () {

@@ -293,9 +293,11 @@ class EmailService
             // Handle attachments if any
             if (!empty($messageData['attachments'])) {
                 foreach ($messageData['attachments'] as $attachment) {
+
+                 
                     $message->attachments()->create([
                         'filename' => $attachment['name'],
-                        'path' => $attachment['path'],
+                        'path' =>str_replace(storage_path(), '', $attachment['path']),
                         'mime_type' => mime_content_type($attachment['path']),
                         'size' => filesize($attachment['path'])
                     ]);

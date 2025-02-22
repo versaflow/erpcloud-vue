@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue';
 import DOMPurify from 'dompurify';
 import Icon from '@/Components/Icons/Index.vue';
+import axios from 'axios';
 
 const props = defineProps({
     message: {
@@ -106,6 +107,40 @@ const messageUser = computed(() => {
     }
     return props.conversation.user;
 });
+
+const handleAttachmentClick = async (attachment) => {
+    try {
+        const response = await axios.get(`/helpdesk/attachments/${attachment.id}/download`, {
+            responseType: 'blob'
+        });
+
+        // Create a blob URL
+        const blob = new Blob([response.data], { 
+            type: response.headers['content-type'] 
+        });
+        const url = window.URL.createObjectURL(blob);
+
+        // For PDFs and images, open in new tab
+        if (response.headers['content-type'].includes('pdf') || 
+            response.headers['content-type'].includes('image')) {
+            window.open(url, '_blank');
+        } else {
+            // For other files, trigger download
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = attachment.original_name;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Clean up
+        window.URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error('Error downloading attachment:', error);
+        alert('Failed to download attachment. Please try again.');
+    }
+};
 </script>
 
 <template>
@@ -164,14 +199,13 @@ const messageUser = computed(() => {
         <div v-if="message.attachments?.length" class="mt-4">
             <div class="text-sm font-medium text-gray-500 mb-2">Attachments:</div>
             <div class="flex flex-wrap gap-2">
-                <a v-for="attachment in message.attachments" 
-                   :key="attachment.id"
-                   :href="`/storage/${attachment.url}`"
-                   target="_blank"
-                   class="inline-flex items-center gap-2 px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded">
-                    <icon name="paperclip" class="w-4 h-4" />
-                    {{ attachment.name }}
-                </a>
+                <button v-for="attachment in message.attachments" 
+                        :key="attachment.id"
+                        @click="handleAttachmentClick(attachment)"
+                        class="inline-flex items-center gap-2 px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded">
+                    <Icon name="paperclip" class="w-4 h-4" />
+                    {{ attachment.name || attachment.original_name }}
+                </button>
             </div>
         </div>
     </div>
