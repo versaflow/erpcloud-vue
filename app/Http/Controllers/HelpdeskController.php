@@ -100,20 +100,40 @@ class HelpdeskController extends Controller
     public function syncEmails(Request $request)
     {
         try {
+            // Log environment info first
+            Log::channel('email-sync')->info('Manual sync - PHP Environment:', [
+                'php_version' => PHP_VERSION,
+                'server_api' => php_sapi_name(),
+                'memory_limit' => ini_get('memory_limit'),
+                'loaded_extensions' => get_loaded_extensions()
+            ]);
+
             $emailSetting = EmailSetting::findOrFail($request->email_id);
             
-            // Create and execute fetcher directly without queue
+            // Force same environment settings as cron
+            ini_set('memory_limit', '256M');
+            
+            Log::channel('email-sync')->info('Starting manual sync for: ' . $emailSetting->email, [
+                'php_version' => PHP_VERSION,
+                'memory_limit' => ini_get('memory_limit')
+            ]);
+            
+            // Create and execute fetcher
             $fetcher = new FetchImapEmails($emailSetting);
-            $fetcher->handle();  // Direct execution
+            $fetcher->handle();
             
             return response()->json([
                 'message' => 'Email sync completed',
                 'last_sync' => now()->diffForHumans()
             ]);
         } catch (\Exception $e) {
-            Log::error('Email sync failed:', [
+            Log::channel('email-sync')->error('Manual sync failed:', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
+                'php_version' => PHP_VERSION,
+                'server_api' => php_sapi_name(),
+                'memory_limit' => ini_get('memory_limit'),
+                'loaded_extensions' => get_loaded_extensions()
             ]);
             
             return response()->json([

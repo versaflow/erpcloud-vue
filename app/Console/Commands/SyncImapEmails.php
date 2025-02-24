@@ -16,14 +16,23 @@ class SyncImapEmails extends Command
     {
         try {
             ini_set('memory_limit', '256M');
-            Log::channel('email-sync')->info('Starting scheduled sync');
+            
+            Log::channel('email-sync')->info('Scheduled sync - PHP Environment:', [
+                'php_version' => PHP_VERSION,
+                'server_api' => php_sapi_name(),
+                'memory_limit' => ini_get('memory_limit'),
+                'loaded_extensions' => get_loaded_extensions()
+            ]);
             
             $accounts = EmailSetting::where('enabled', true)->get();
             
             foreach ($accounts as $account) {
                 try {
                     $this->info("Processing {$account->email}");
-                    Log::channel('email-sync')->info("Starting sync for {$account->email}");
+                    Log::channel('email-sync')->info("Starting sync for {$account->email}", [
+                        'php_version' => PHP_VERSION,
+                        'memory_limit' => ini_get('memory_limit')
+                    ]);
                     
                     $fetcher = new FetchImapEmails($account);
                     $fetcher->handle();
@@ -34,7 +43,8 @@ class SyncImapEmails extends Command
                 } catch (\Exception $e) {
                     Log::channel('email-sync')->error("Failed processing {$account->email}", [
                         'error' => $e->getMessage(),
-                        // 'trace' => $e->getTraceAsString()
+                        'php_version' => PHP_VERSION,
+                        'server_api' => php_sapi_name()
                     ]);
                     $this->error("✗ Failed {$account->email}: {$e->getMessage()}");
                 }
@@ -47,7 +57,8 @@ class SyncImapEmails extends Command
         } catch (\Exception $e) {
             Log::channel('email-sync')->error("Sync error", [
                 'error' => $e->getMessage(),
-                // 'trace' => $e->getTraceAsString()
+                'php_version' => PHP_VERSION,
+                'server_api' => php_sapi_name()
             ]);
             return 1;
         }

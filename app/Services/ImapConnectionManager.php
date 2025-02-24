@@ -18,6 +18,17 @@ class ImapConnectionManager
         $key = self::$cachePrefix . $emailSetting->id;
         
         try {
+            // Force high memory limit first
+            ini_set('memory_limit', '256M');
+            
+            // Log PHP version and extension info
+            Log::channel('email-sync')->info('IMAP Manager Environment:', [
+                'php_version' => PHP_VERSION,
+                'memory_limit' => ini_get('memory_limit'),
+                'loaded_extensions' => get_loaded_extensions(),
+                'email' => $emailSetting->email
+            ]);
+
             if (isset(self::$connections[$key])) {
                 return self::$connections[$key];
             }
@@ -64,9 +75,12 @@ class ImapConnectionManager
                 'error' => $e->getMessage(),
                 'email' => $emailSetting->email,
                 'host' => $emailSetting->host,
-                'port' => $emailSetting->port
+                'port' => $emailSetting->port,
+                'php_version' => PHP_VERSION,
+                'server_api' => php_sapi_name(),
+                'loaded_extensions' => get_loaded_extensions()
             ]);
-            return null;
+            throw $e;
         }
     }
 
