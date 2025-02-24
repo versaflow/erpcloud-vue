@@ -173,19 +173,17 @@ class EmailService
             $signatureContent = $this->getEnabledSignature($emailSetting);
             
             // Combine content with signature if available
-            $fullContent = $messageData['content'];
+            $fullContent = nl2br($messageData['content']); // Convert newlines to <br> tags
             if ($signatureContent) {
                 $fullContent .= $signatureContent;
             }
 
-          
-
-            // Set email content
+            // Set email content with proper content-type
             $mail->isHTML(true);
+            $mail->ContentType = 'text/html; charset=UTF-8';
+            $mail->CharSet = 'UTF-8';
             $mail->Body = $fullContent;
-            $mail->AltBody = strip_tags($fullContent);
-
-      
+            $mail->AltBody = strip_tags(str_replace(['<br>', '<br/>'], "\n", $fullContent));
 
             // Add attachments with proper path handling
             if (!empty($messageData['attachments'])) {
@@ -340,10 +338,11 @@ class EmailService
             return '';
         }
 
-        // Format signature with proper spacing
-        return "\n\n" . 
-               "-- \n" . 
-               trim($signature->content); // trim to remove any extra whitespace
+        // Format signature with proper HTML spacing and divider
+        return '<br><br>' . 
+               '<div class="signature" style="border-top: 1px solid #ddd; padding-top: 10px; margin-top: 10px;">' . 
+               $signature->content . 
+               '</div>';
     }
 
 

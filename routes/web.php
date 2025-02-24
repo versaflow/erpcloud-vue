@@ -155,6 +155,9 @@ Route::middleware(['auth'])->group(function () {
     
     Route::post('/api/upload', [FileUploadController::class, 'store'])
         ->name('api.upload');
+    
+    Route::post('/api/signature-images', [FileUploadController::class, 'storeSignatureImage'])
+        ->name('api.signature.upload');
 
     // Knowledge Base Routes - make sure these are outside admin middleware
     Route::prefix('helpdesk/kb')->group(function () {

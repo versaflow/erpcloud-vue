@@ -7,7 +7,6 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
 
-
 class FileUploadController extends Controller
 {
     public function store(Request $request)
@@ -47,6 +46,37 @@ class FileUploadController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'error' => 'Upload failed: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function storeSignatureImage(Request $request)
+    {
+        $request->validate([
+            'image' => 'required|image|max:2048|mimes:jpeg,png,jpg,gif'
+        ]);
+
+        try {
+            $file = $request->file('image');
+            $fileName = Str::uuid() . '_' . $file->getClientOriginalName();
+            
+            // Store in the public disk under signature-images directory
+            $path = Storage::disk('public')->putFileAs(
+                'signature-images',
+                $file,
+                $fileName
+            );
+
+            $url = asset('storage/' . $path);
+
+            return response()->json([
+                'url' => $url,
+                'path' => $path
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Image upload failed: ' . $e->getMessage()
             ], 500);
         }
     }

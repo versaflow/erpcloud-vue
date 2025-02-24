@@ -4,7 +4,7 @@
       <h3 class="text-lg font-medium">Email Account Configuration</h3>
       <button
         @click="$emit('addConfig')"
-        :disabled="configs.length >= 5"
+        :disabled="configs.length >= 6"
         class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
       >
         Add Email Configuration
@@ -276,8 +276,8 @@
           <div v-for="(sig, sigIndex) in config.signatures" :key="sigIndex" class="border rounded-lg p-4">
             <div class="flex items-center justify-between mb-3">
               <div class="flex items-center gap-4">
-                <input v-model="sig.name" placeholder="Signature Name"
-                  class="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <!-- <input v-model="sig.name" placeholder="Signature Name"
+                  class="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"> -->
                 <label class="flex items-center">
                   <input type="radio" :checked="sig.isDefault" @change="setDefaultSignature(config, sigIndex)"
                     class="rounded-full border-gray-300 text-indigo-600 focus:ring-indigo-500">
@@ -290,13 +290,47 @@
               </button>
             </div>
 
-            <textarea v-model="sig.content" rows="4" placeholder="Enter your signature here... HTML supported"
-              class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-            </textarea>
+            <div class="mt-3">
+              <!-- Editor and Preview side by side -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Editor Column -->
+                <div class="space-y-2">
+                  <!-- Toolbar -->
+                  <div class="flex items-center gap-2 border-b pb-2">
+                    <button @click="triggerImageUpload(sigIndex)" 
+                            class="inline-flex items-center gap-2 p-1 hover:bg-gray-100 rounded text-gray-600">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span class="text-sm">Add Image</span>
+                    </button>
+                    <input
+                      type="file"
+                      :ref="el => signatureImageInputs[sigIndex] = el"
+                      class="hidden"
+                      accept="image/*"
+                      @change="handleSignatureImageUpload($event, sigIndex)"
+                    >
+                  </div>
 
-            <div v-if="sig.content" class="mt-3 p-3 border rounded bg-white">
-              <div class="text-sm text-gray-500 mb-2">Preview:</div>
-              <div v-html="sig.content" class="prose prose-sm max-w-none"></div>
+                  <!-- Editor -->
+                  <textarea 
+                    v-model="sig.content" 
+                    @input="handleSignatureChange(sigIndex, sig.content)"
+                    rows="12"
+                    placeholder="Enter your signature here... HTML supported"
+                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                  ></textarea>
+                </div>
+
+                <!-- Preview Column -->
+                <div class="border rounded bg-white p-4">
+                  <div class="text-sm text-gray-500 mb-2">Preview:</div>
+                  <div class="min-h-[200px] prose prose-sm max-w-none">
+                    <div v-html="previewContents[sigIndex] || sig.content"></div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -336,7 +370,30 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
+import axios from 'axios';
+
+// Add debounce utility
+const debounce = (fn, delay) => {
+  let timeoutId;
+  return (...args) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn(...args), delay);
+  };
+};
+
+// Add preview content computed property
+const previewContents = ref({});
+
+// Debounced update preview
+const updatePreview = debounce((sigIndex, content) => {
+  previewContents.value[sigIndex] = content;
+}, 500);
+
+// Watch signature content changes
+const handleSignatureChange = (sigIndex, content) => {
+  updatePreview(sigIndex, content);
+};
 
 const props = defineProps({
   configs: {
@@ -416,5 +473,44 @@ const watchImapEmail = (config) => {
 
 const isConfigSyncing = (configId) => props.syncingStates.get(configId) || false;
 
+const signatureImageInputs = ref({});
+
+const triggerImageUpload = (sigIndex) => {
+  signatureImageInputs.value[sigIndex]?.click();
+};
+
+const handleSignatureImageUpload = async (event, sigIndex) => {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append('image', file);
+
+  try {
+    const response = await axios.post('/api/signature-images', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+
+    // Insert image HTML at cursor position or at the end
+    const imageHtml = `<img src="${response.data.url}" alt="Signature Image" style="max-width: 200px;">`;
+    props.configs[sigIndex].signatures[sigIndex].content += imageHtml;
+
+    // Clear the input
+    event.target.value = '';
+  } catch (error) {
+    console.error('Failed to upload image:', error);
+    // You might want to show an error notification here
+  }
+};
+
 defineEmits(['addConfig', 'removeConfig', 'syncEmails', 'update:configs']);
 </script>
+
+<style scoped>
+.prose img {
+  max-width: 200px;
+  height: auto;
+}
+</style>

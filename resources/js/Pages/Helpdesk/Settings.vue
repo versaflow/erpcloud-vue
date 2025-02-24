@@ -59,7 +59,7 @@ const emailConfigs = ref(props.emailSettings.map(setting => ({
 })));
 
 const addEmailConfig = () => {
-    if (emailConfigs.value.length < 5) {
+    if (emailConfigs.value.length < 6) {
         emailConfigs.value.push({
             id: null,
             email: '',
@@ -139,7 +139,7 @@ const errors = ref({});
 const showError = ref(false);
 
 const showSuccess = (message) => {
-    toast.add({
+    showToast({
         severity: 'success',
         summary: 'Success',
         detail: message,
@@ -148,7 +148,7 @@ const showSuccess = (message) => {
 };
 
 const showErrorT = (message) => {
-    toast.add({
+    showToast({
         severity: 'error',
         summary: 'Error',
         detail: message,

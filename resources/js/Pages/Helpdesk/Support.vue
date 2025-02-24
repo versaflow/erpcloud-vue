@@ -676,8 +676,13 @@ watch(() => props.conversations, (newConversations) => {
 const refreshConversations = async () => {
     try {
         const response = await axios.get('/helpdesk/conversations/refresh');
-        allConversations.value = response.data;
-        safeRefreshCells();
+        
+        const isDataDifferent = JSON.stringify(response.data) !== JSON.stringify(allConversations.value);
+        
+        if (isDataDifferent) {
+            allConversations.value = response.data;
+            safeRefreshCells();
+        }
     } catch (error) {
         console.error('Failed to refresh conversations:', error);
         showToast('Failed to refresh conversations', 'error');
@@ -865,7 +870,7 @@ onUnmounted(() => {
 const handleBackToGrid = () => {
     showChatArea.value = false;
     selectedConversation.value = null;
-    // refreshConversations(); 
+    refreshConversations(); 
 };
 
 

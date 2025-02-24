@@ -136,9 +136,10 @@ const openModal = (department = null) => {
     editingDepartment.value = department;
     if (department) {
         form.name = department.name;
-        form.is_active = department.is_active;
+        form.is_active = Boolean(department.is_active); 
     } else {
         form.reset();
+        form.is_active = true;
     }
     showModal.value = true;
 };

@@ -167,7 +167,6 @@ async function sendMessage() {
 async function handleEmailSend(emailData) {
     if (isSendingEmail.value) return;
 
-    console.log('Email attachments:', emailData.attachments);
 
     
     isSendingEmail.value = true;
@@ -535,7 +534,7 @@ const handleBackToGrid = () => {
                                     class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md"
                                     :class="['resolved', 'closed'].includes(conversation.status)
                                         ? 'text-green-600 hover:bg-green-50'
-                                        : 'text-gray-700 hover:bg-gray-100'">
+                                        : 'text-green-600 hover:bg-green-50'">
                                 <!-- Fix icon alignment -->
                                 <div class="flex items-center gap-2">
                                     <Icon 
