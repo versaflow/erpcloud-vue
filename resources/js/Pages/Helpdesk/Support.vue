@@ -203,13 +203,23 @@ const safeRefreshCells = (gridType) => {
 
 // Update onCellClicked implementation
 const onCellClicked = async params => {
+    const isClickableElement = params.event.target.closest('.open-conversation-btn') ||
+                             ['subject', 'source', 'status'].includes(params.column.colDef.field);
+    
+    if (!isClickableElement) {
+        return;
+    }
+
     if (!canAccessConversation.value(params.data)) {
         showToast('You do not have permission to access this conversation', 'error');
         return;
     }
 
     try {
-        if (params.column.colDef.field === 'subject') {
+        // Check if click was on the phone icon button
+        const isPhoneIconClick = params.event.target.closest('.open-conversation-btn');
+        
+        if (params.column.colDef.field === 'subject' || isPhoneIconClick) {
             // Store grid API reference before showing chat
             const currentApi = gridApi.value[activeTab.value];
             
@@ -327,7 +337,7 @@ const columnDefs = [
         headerName: 'Status',
         field: 'status',
         width: 120,
-        cellClass: 'ag-cell-center-items',
+        cellClass: 'ag-cell-center-items open-conversation-btn cursor-pointer',
         filter: 'agSetColumnFilter',
         filterParams: {
             values: VALID_STATUSES
@@ -366,8 +376,7 @@ const columnDefs = [
         cellRenderer: params => `
             <div class="flex items-center gap-2">
                 <span class="w-2 h-2 mr-2 inline-block flex-shrink-0 ${params.data.unread_messages_count ? 'rounded-full bg-red-500' : ''}" aria-hidden="true"></span>
-                <span class="font-medium text-gray-900 truncate">${params.value}</span>
-                ${params.data.is_priority ? '<span class="text-red-500">⚡</span>' : ''}
+                <span class="font-medium text-gray-900 truncate cursor-pointer open-conversation-btn">${params.value}</span>
             </div>
         `
     },
@@ -375,7 +384,7 @@ const columnDefs = [
         headerName: 'Source',
         field: 'source',
         width: 240,
-        cellClass: 'ag-cell-center-items single-line-cell',
+        cellClass: 'ag-cell-center-items single-line-cell open-conversation-btn cursor-pointer',
         filter: 'agTextColumnFilter',
         filterParams: {
             filterOptions: ['contains', 'notContains', 'equals', 'notEqual'],
@@ -510,11 +519,9 @@ const columnDefs = [
             return `
                 <div class="flex items-center justify-center gap-2">
                     ${(isAdmin.value || !params.data.agent_id || params.data.agent_id === currentUser.value.id) ? `
-                        <button data-action="escalate" 
-                                class="p-1.5 text-yellow-600 hover:bg-yellow-50 rounded-full transition-colors">
+                        <button class="open-conversation-btn p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors">
                             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                                      d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                             </svg>
                         </button>
                     ` : ''}
@@ -669,7 +676,7 @@ const gridOptions = {
         // Also update getRowNodeId for consistency
         return String(data?.id || Math.random());
     },
-    immutableData: true 
+    immutableData: true
 };
 
 // Simplified grid ready handler
@@ -1279,7 +1286,7 @@ const archiveButtonText = computed(() => {
 /* Ensure proper display of the pagination panel */
 :deep(.ag-theme-alpine .ag-ping-panel) {
     border-top: 1px solid var(--ag-border-color);
-    padding: var(--ag-pagination-padding);
+    padding: var (--ag-pagination-padding);
     font-size: 0.875rem;
     position: sticky;
     bottom: 0;
