@@ -16,7 +16,8 @@ class KnowledgeBaseArticle extends Model
         'author_id',
         'status',
         'tags',
-        'sent_count'
+        'sent_count',
+        'category'  // Add this line
     ];
 
     protected $casts = [

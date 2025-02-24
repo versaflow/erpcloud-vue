@@ -953,23 +953,32 @@ class HelpdeskController extends Controller
 
     public function manageKnowledgeBase()
     {
+        $articles = KnowledgeBaseArticle::with(['department', 'author'])
+            ->latest()
+            ->get()
+            ->map(fn($article) => [
+                'id' => $article->id,
+                'title' => $article->title,
+                'content' => $article->content,
+                'department' => $article->department?->name ?? 'General',
+                'author' => $article->author->name,
+                'status' => $article->status,
+                'tags' => $article->tags,
+                'view_count' => $article->view_count,
+                'created_at' => $article->created_at->format('Y-m-d H:i:s'),
+                'updated_at' => $article->updated_at->format('Y-m-d H:i:s'),
+                'category' => $article->category,
+            ]);
+
+        // Get unique categories
+        $categories = KnowledgeBaseArticle::distinct('category')
+            ->whereNotNull('category')
+            ->pluck('category');
+
         return Inertia::render('Helpdesk/knowledgeBase', [
-            'articles' => KnowledgeBaseArticle::with(['department', 'author'])
-                ->latest()
-                ->get()
-                ->map(fn($article) => [
-                    'id' => $article->id,
-                    'title' => $article->title,
-                    'content' => $article->content,
-                    'department' => $article->department?->name ?? 'General',
-                    'author' => $article->author->name,
-                    'status' => $article->status,
-                    'tags' => $article->tags,
-                    'view_count' => $article->view_count,
-                    'created_at' => $article->created_at->format('Y-m-d H:i:s'),
-                    'updated_at' => $article->updated_at->format('Y-m-d H:i:s')
-                ]),
-            'departments' => Department::select('id', 'name')->get()
+            'articles' => $articles,
+            'departments' => Department::select('id', 'name')->get(),
+            'categories' => $categories
         ]);
     }
 
@@ -980,7 +989,8 @@ class HelpdeskController extends Controller
             'content' => 'required|string',
             'department_id' => 'required|exists:departments,id', 
             'tags' => 'nullable|array',
-            'status' => 'required|in:draft,published'
+            'status' => 'required|in:draft,published',
+            'category' => 'nullable|string|max:255'  // Add this line
         ]);
 
         $article = KnowledgeBaseArticle::create([
@@ -998,7 +1008,8 @@ class HelpdeskController extends Controller
             'content' => 'required|string',
             'department_id' => 'required|exists:departments,id',
             'tags' => 'nullable|array',
-            'status' => 'required|in:draft,published'
+            'status' => 'required|in:draft,published',
+            'category' => 'nullable|string|max:255'  // Add this line
         ]);
 
         $article->update($validated);

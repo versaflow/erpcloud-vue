@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import axios from 'axios';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head } from '@inertiajs/vue3';
@@ -33,6 +33,10 @@ const props = defineProps({
     departments: {
         type: Array,
         required: true
+    },
+    categories: {  // Add this prop
+        type: Array,
+        required: true
     }
 });
 
@@ -40,12 +44,14 @@ const { showToast } = useToast();
 
 const showAddModal = ref(false);
 const editingArticle = ref(null);
+const selectedCategory = ref('all');
 const form = ref({
     title: '',
     content: '',
     department_id: null,
     tags: [],
-    status: 'draft'
+    status: 'draft',
+    category: ''
 });
 
 const editor = useEditor({
@@ -125,13 +131,20 @@ const colors = [
     '#000000',
 ];
 
+// Add computed property for filtered articles
+const filteredArticles = computed(() => {
+    if (selectedCategory.value === 'all') return props.articles;
+    return props.articles.filter(article => article.category === selectedCategory.value);
+});
+
 const resetForm = () => {
     form.value = {
         title: '',
         content: '',
         department_id: null,
         tags: [],
-        status: 'draft'
+        status: 'draft',
+        category: ''
     };
     editor.value?.commands.setContent('');
 };
@@ -167,7 +180,8 @@ const editArticle = (article) => {
         content: article.content,
         department_id: article.department_id,
         tags: article.tags || [],
-        status: article.status
+        status: article.status,
+        category: article.category || ''
     };
     editor.value?.commands.setContent(article.content);
     showAddModal.value = true;
@@ -207,6 +221,22 @@ const addTable = () => {
                         </button>
                     </div>
 
+                    <!-- Add category filter near the header -->
+                    <div class="flex justify-between items-center mb-4">
+                        <div class="flex items-center space-x-4">
+                            <label class="text-sm font-medium text-gray-700">Filter by Category:</label>
+                            <select v-model="selectedCategory"
+                                    class="rounded-md border-gray-300 shadow-sm">
+                                <option value="all">All Categories</option>
+                                <option v-for="category in categories"
+                                        :key="category"
+                                        :value="category">
+                                    {{ category }}
+                                </option>
+                            </select>
+                        </div>
+                    </div>
+
                     <!-- Articles Table -->
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200">
@@ -215,12 +245,13 @@ const addTable = () => {
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
                                     <!-- <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sent</th> -->
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
-                                <tr v-for="article in articles" :key="article.id">
+                                <tr v-for="article in filteredArticles" :key="article.id">
                                     <td class="px-6 py-4">
                                         <div class="text-sm font-medium text-gray-900">{{ article.title }}</div>
                                         <div class="text-sm text-gray-500">By {{ article.author }}</div>
@@ -235,6 +266,9 @@ const addTable = () => {
                                         ]">
                                             {{ article.status }}
                                         </span>
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-500">
+                                        {{ article.category || 'Uncategorized' }}
                                     </td>
                                     <!-- <td class="px-6 py-4 text-sm text-gray-500">
                                         {{ article.sent_count }}
@@ -459,6 +493,21 @@ const addTable = () => {
                                 <option value="draft">Draft</option>
                                 <option value="published">Published</option>
                             </select>
+                        </div>
+
+                        <!-- Add category field to the form modal -->
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700">Category</label>
+                            <input v-model="form.category"
+                                   type="text"
+                                   list="categories"
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                                   placeholder="Enter or select a category" />
+                            <datalist id="categories">
+                                <option v-for="category in categories"
+                                        :key="category"
+                                        :value="category" />
+                            </datalist>
                         </div>
 
                         <div class="flex justify-end gap-3">
