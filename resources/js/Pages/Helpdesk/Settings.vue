@@ -331,6 +331,66 @@ watch(activeTab, (newTab) => {
         fetchSpamContacts();
     }
 });
+
+// Add new ref for general settings
+const generalSettings = ref({
+    can_see_all_department_tickets: false
+});
+
+// Add loading state for general settings
+const isGeneralSettingsSaving = ref(false);
+
+// Add function to fetch general settings
+const fetchGeneralSettings = async () => {
+    try {
+        const response = await axios.get(route('helpdesk.settings.general'));
+        generalSettings.value = response.data;
+    } catch (error) {
+        console.error('Failed to fetch general settings:', error);
+    }
+};
+
+// Update the saveGeneralSettings function
+const saveGeneralSettings = async (newSettings) => {
+    if (isGeneralSettingsSaving.value) return;
+    
+    isGeneralSettingsSaving.value = true;
+    try {
+        const response = await axios.post(route('helpdesk.settings.general.save'), newSettings);
+        
+        // Update the local state with the response data
+        generalSettings.value = response.data.settings;
+        
+        showToast({
+            severity: 'success',
+            summary: 'Success',
+            detail: response.data.message,
+            life: 3000
+        });
+    } catch (error) {
+        console.error('Failed to save general settings:', error);
+        showToast({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'Failed to save general settings',
+            life: 5000
+        });
+        // Revert the toggle if save failed
+        generalSettings.value.can_see_all_department_tickets = !newSettings.can_see_all_department_tickets;
+    } finally {
+        isGeneralSettingsSaving.value = false;
+    }
+};
+
+// Update existing onMounted to include fetching general settings
+onMounted(() => {
+    fetchCronStatus();
+    fetchGeneralSettings();
+    setInterval(fetchCronStatus, 60000);
+    if (activeTab.value === 'spam') {
+        fetchSpamContacts();
+    }
+});
 </script>
 
 <template>
@@ -448,10 +508,56 @@ watch(activeTab, (newTab) => {
                 <div v-show="activeTab === 'general'" class="bg-white rounded-lg shadow p-6">
                     <h3 class="text-lg font-medium mb-4">General Settings</h3>
                     <div class="space-y-4">
-                        <label class="flex items-center">
-                            <input type="checkbox" class="rounded border-gray-300 text-indigo-600">
-                            <span class="ml-2">Auto-assign conversations</span>
-                        </label>
+                        <div class="flex items-center justify-between py-3 border-b">
+                            <div>
+                                <h4 class="text-sm font-medium text-gray-900">Cross-Department Visibility</h4>
+                                <p class="text-sm text-gray-500">Allow agents to view tickets from all departments</p>
+                            </div>
+                            <div class="ml-4">
+                                <button 
+                                    type="button"
+                                    :disabled="isGeneralSettingsSaving"
+                                    @click="saveGeneralSettings({
+                                        can_see_all_department_tickets: !generalSettings.can_see_all_department_tickets
+                                    })"
+                                    class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                    :class="[
+                                        generalSettings.can_see_all_department_tickets ? 'bg-indigo-600' : 'bg-gray-200',
+                                        isGeneralSettingsSaving ? 'opacity-50 cursor-wait' : ''
+                                    ]"
+                                >
+                                    <span 
+                                        class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200"
+                                        :class="[
+                                            generalSettings.can_see_all_department_tickets ? 'translate-x-5' : 'translate-x-0',
+                                            isGeneralSettingsSaving ? 'opacity-50' : ''
+                                        ]"
+                                    >
+                                        <svg
+                                            v-if="isGeneralSettingsSaving"
+                                            class="animate-spin h-4 w-4 text-indigo-600 absolute top-0.5 left-0.5"
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <circle
+                                                class="opacity-25"
+                                                cx="12"
+                                                cy="12"
+                                                r="10"
+                                                stroke="currentColor"
+                                                stroke-width="4"
+                                            ></circle>
+                                            <path
+                                                class="opacity-75"
+                                                fill="currentColor"
+                                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                            ></path>
+                                        </svg>
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
                         <!-- ... other general settings ... -->
                     </div>
                 </div>

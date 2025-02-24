@@ -68,13 +68,23 @@ const showAgentMenu = ref(false);
 // Filtered conversations logic
 const filteredConversations = computed(() => {
     const conversations = allConversations.value || [];
+
+    
     
     // Admin can see everything
     if (currentUser.value.is_admin) {
         return conversations;
     }
 
-    // Agents can only see:
+    // Check if cross-department visibility is enabled
+    const canSeeAllDepartments = page.props.settings?.can_see_all_department_tickets;
+
+    // If cross-department visibility is enabled, show all conversations
+    if (canSeeAllDepartments) {
+        return conversations;
+    }
+
+    // Otherwise, show only:
     // 1. Tickets assigned to them
     // 2. Unassigned tickets from their department
     // 3. Unassigned tickets with no department

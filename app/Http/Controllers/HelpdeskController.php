@@ -6,6 +6,7 @@ use Barryvdh\DomPDF\Facade\Pdf;  // Add this import
 use Illuminate\Support\Str; // Add this import
 use App\Models\EmailSetting;
 use App\Models\Department;
+use App\Models\SupportSettings;
 use App\Models\EmailSignature;
 use App\Models\SupportUser;
 use App\Models\Conversation;
@@ -234,6 +235,8 @@ class HelpdeskController extends Controller
         // Get authenticated user
         $authUser = Auth::user();
         
+        // Get settings
+        $settings = SupportSettings::getInstance();
 
         // Get departments with debug logging
         $departments = Department::select('id', 'name', 'email')
@@ -343,7 +346,11 @@ class HelpdeskController extends Controller
             // Add signatures to the response
             'signatures' => EmailSignature::select(['id', 'name', 'content', 'is_default'])
                 ->orderBy('is_default', 'desc')
-                ->get()
+                ->get(),
+            // Add settings to the response
+            'settings' => [
+                'can_see_all_department_tickets' => $settings->can_see_all_department_tickets
+            ]
         ];
 
 
@@ -1003,5 +1010,29 @@ class HelpdeskController extends Controller
     {
         $article->delete();
         return response()->json(['message' => 'Article deleted successfully']);
+    }
+
+    public function getGeneralSettings()
+    {
+        $settings = SupportSettings::getInstance();
+        
+        return response()->json([
+            'can_see_all_department_tickets' => $settings->can_see_all_department_tickets
+        ]);
+    }
+
+    public function saveGeneralSettings(Request $request)
+    {
+        $validated = $request->validate([
+            'can_see_all_department_tickets' => 'required|boolean'
+        ]);
+
+        $settings = SupportSettings::getInstance();
+        $settings->update($validated);
+
+        return response()->json([
+            'message' => 'General settings saved successfully',
+            'settings' => $settings
+        ]);
     }
 }

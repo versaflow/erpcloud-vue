@@ -147,6 +147,12 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::get('/helpdesk/attachments/{attachment}/download', [AttachmentController::class, 'download'])
         ->name('helpdesk.attachments.download')
         ->middleware(['auth']);
+    
+    // Add these new routes for support settings
+    Route::get('/helpdesk/settings/general', [HelpdeskController::class, 'getGeneralSettings'])
+        ->name('helpdesk.settings.general');
+    Route::post('/helpdesk/settings/general/save', [HelpdeskController::class, 'saveGeneralSettings'])
+        ->name('helpdesk.settings.general.save');
 }); // This is the correct closing brace
 
 Route::middleware(['auth'])->group(function () {
