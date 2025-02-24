@@ -102,15 +102,23 @@ class HelpdeskController extends Controller
         try {
             $emailSetting = EmailSetting::findOrFail($request->email_id);
             
-            // Just dispatch for immediate sync
-            FetchImapEmails::dispatchSync($emailSetting);
+            // Create and execute fetcher directly without queue
+            $fetcher = new FetchImapEmails($emailSetting);
+            $fetcher->handle();  // Direct execution
             
             return response()->json([
                 'message' => 'Email sync completed',
                 'last_sync' => now()->diffForHumans()
             ]);
         } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
+            Log::error('Email sync failed:', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 
